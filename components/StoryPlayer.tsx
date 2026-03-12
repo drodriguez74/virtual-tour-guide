@@ -70,6 +70,7 @@ export default function StoryPlayer({
 
     const fetchAndPlay = async () => {
       try {
+        console.log('[StoryPlayer] Fetching audio for narration...');
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -79,29 +80,42 @@ export default function StoryPlayer({
           }),
         });
 
+        console.log('[StoryPlayer] TTS response status:', res.status);
         if (!res.ok) throw new Error(`TTS request failed: ${res.status}`);
 
-        const { audioContent } = await res.json();
+        const { audioContent, mimeType = "audio/wav" } = await res.json();
+        console.log('[StoryPlayer] Audio received, length:', audioContent?.length, 'mimeType:', mimeType);
+        
         if (!audioContent) throw new Error("No audio content returned");
 
         // Only proceed if component is still mounted
         if (!isMounted) return;
 
-        const audio = new Audio(`data:audio/mpeg;base64,${audioContent}`);
+        const dataUrl = `data:${mimeType};base64,${audioContent}`;
+        console.log('[StoryPlayer] Creating audio element with data URL (length:', dataUrl.length, ')');
+        const audio = new Audio(dataUrl);
+        
         audio.onplay = () => {
+          console.log('[StoryPlayer] Audio started playing');
           if (isMounted) setIsSpeaking(true);
         };
         audio.onpause = () => {
+          console.log('[StoryPlayer] Audio paused');
           if (isMounted) setIsSpeaking(false);
         };
         audio.onended = () => {
+          console.log('[StoryPlayer] Audio ended');
           if (isMounted) setIsSpeaking(false);
+        };
+        audio.onerror = (e: any) => {
+          console.error('[StoryPlayer] Audio error:', e);
         };
 
         audioRef.current = audio;
-        audio.play().catch((err) => console.warn("Audio play failed:", err));
+        console.log('[StoryPlayer] Calling audio.play()...');
+        audio.play().catch((err) => console.warn("[StoryPlayer] Audio play failed:", err));
       } catch (e) {
-        console.error("StoryPlayer TTS error:", e);
+        console.error("[StoryPlayer] TTS error:", e);
       }
     };
 

@@ -102,7 +102,8 @@ export default function CommentaryPanel({
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 relative touch-pan-y"
+        style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
       >
         {messages.length === 0 && !streamingText && (
           <div className="py-12 text-center text-stone-500">

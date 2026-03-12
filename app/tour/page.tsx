@@ -72,23 +72,36 @@ function TourContent() {
     async (text: string) => {
       if (!ttsEnabled || typeof window === "undefined") return;
       try {
+        console.log('[TourPage] speakText called with TTS enabled, sending to /api/tts');
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text, langCode }),
         });
+        
+        console.log('[TourPage] TTS response status:', res.status);
+        
         if (res.ok) {
-          const b64 = await res.text();
-          const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
-          audio.play().catch(() => {
-            /* ignore play errors */
-          });
-          return;
+          const { audioContent, mimeType = "audio/wav" } = await res.json();
+          console.log('[TourPage] Audio received, length:', audioContent?.length, 'mimeType:', mimeType);
+          
+          if (audioContent) {
+            const dataUrl = `data:${mimeType};base64,${audioContent}`;
+            console.log('[TourPage] Creating audio element');
+            const audio = new Audio(dataUrl);
+            audio.onerror = (e: any) => console.error('[TourPage] Audio error:', e);
+            console.log('[TourPage] Calling audio.play()');
+            audio.play().catch((err) => {
+              console.warn("[TourPage] Audio play failed:", err)
+            });
+            return;
+          }
         }
         throw new Error("TTS endpoint returned " + res.status);
       } catch (e) {
-        console.error("TTS fetch failed, falling back to browser: ", e);
+        console.error("[TourPage] TTS fetch failed:", e);
         if (typeof window !== "undefined" && window.speechSynthesis) {
+          console.log('[TourPage] Falling back to browser SpeechSynthesis');
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = langCode === "es" ? "es-ES" : "en-US";
           utterance.rate = 0.9;
