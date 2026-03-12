@@ -52,13 +52,13 @@ flowchart TD
 |---|---|---|
 | Frontend Framework | **Next.js 14 (App Router)** | Built-in API routes, fast setup, Vercel-native |
 | Styling | **Tailwind CSS** | Rapid UI, mobile-first, no config needed |
-| AI Commentary | **Google Gemini 1.5 Pro** (or GPT-4o) | Native vision + live camera support |
+| AI Commentary | **Google Gemini** (model set via `GEMINI_MODEL`, default `gemini-1.5`; falls back to GPT-4o) | Native vision + streaming; GPT-4o used if Gemini unavailable |
 | Image Generation | **OpenAI DALL-E 3** | Best for realistic historical reconstructions |
 | Hosting | **Vercel** (free tier) | One-click deploy, free HTTPS, shareable URL |
 | Camera Access | **Browser MediaDevices API** | No native app needed, works in mobile Safari/Chrome |
 | Location | **Browser Geolocation API** | GPS coordinates for context |
 | Voice Input | **Browser SpeechRecognition API** | Built-in, no extra cost |
-| Text-to-Speech | **Browser SpeechSynthesis API** | Built-in, multilingual, no extra cost |
+| Text-to-Speech | **Server-side Google Cloud TTS (Neural2) via `/api/tts`** | High-quality Neural2 voices, server-controlled playback |
 
 > 💡 **No app store needed.** Users just open the URL in their phone browser and bookmark it.
 
@@ -298,9 +298,19 @@ export function getPrompt(destination: string, langCode: string = "en"): string 
 - [ ] **Task 6.3** — Add optional TTS toggle button 🔊 on commentary panel
 - [ ] **Task 6.4** — Read AI commentary aloud using correct voice:
 ```typescript
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = langCode === "es" ? "es-ES" : "en-US";
-  window.speechSynthesis.speak(utterance);
+ - [ ] **Task 6.4** — Read AI commentary aloud using server TTS (`/api/tts`). Example:
+```typescript
+// POST /api/tts { text, langCode, voice? } -> { audioContent: string (base64 MP3) }
+async function speakText(text: string, langCode = 'en', voice?: string) {
+  const res = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, langCode, voice }),
+  });
+  const { audioContent } = await res.json();
+  const audio = new Audio(`data:audio/mp3;base64,${audioContent}`);
+  await audio.play();
+}
 ```
 - [ ] **Task 6.5** — Set voice input recognition language to match selected language for `SpeechRecognition`
 

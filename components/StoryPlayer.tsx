@@ -23,7 +23,7 @@ export default function StoryPlayer({
   const [isPaused, setIsPaused] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const sentences = narration.split(/(?<=[.!?])\s+/).filter(Boolean);
   const sentencesPerImage = Math.ceil(sentences.length / images.length);
@@ -50,27 +50,47 @@ export default function StoryPlayer({
     };
   }, [isPaused, images.length]);
 
-  // TTS narration
+  // TTS narration via server endpoint (/api/tts)
   useEffect(() => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(narration);
-    utterance.lang = langCode === "es" ? "es-ES" : "en-US";
-    utterance.rate = 0.9;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utteranceRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+    if (typeof window === "undefined") return;
+    setIsSpeaking(false);
+
+    const fetchAndPlay = async () => {
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: narration, languageCode: langCode === "es" ? "es-ES" : "en-US" }),
+        });
+        if (!res.ok) throw new Error("tts fetch failed");
+        const { audioContent } = await res.json();
+        const audio = new Audio(`data:audio/mpeg;base64,${audioContent}`);
+        audioRef.current = audio;
+        audio.onplay = () => setIsSpeaking(true);
+        audio.onended = () => setIsSpeaking(false);
+        audio.play().catch(() => {});
+      } catch (e) {
+        console.error("StoryPlayer TTS error", e);
+      }
+    };
+
+    fetchAndPlay();
+
     return () => {
-      window.speechSynthesis.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
     };
   }, [narration, langCode]);
 
   const togglePause = () => {
-    if (isPaused) {
-      window.speechSynthesis?.resume();
-    } else {
-      window.speechSynthesis?.pause();
+    if (audioRef.current) {
+      if (isPaused) {
+        audioRef.current.play().catch(() => {});
+      } else {
+        audioRef.current.pause();
+      }
     }
     setIsPaused(!isPaused);
   };
@@ -106,7 +126,12 @@ export default function StoryPlayer({
       {/* Close button */}
       <button
         onClick={() => {
-          window.speechSynthesis?.cancel();
+          if (audioRef.current) {
+            try {
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+            } catch {}
+          }
           onClose();
         }}
         className="absolute right-4 top-4 z-10 rounded-full bg-black/60 px-3 py-1 text-sm text-white backdrop-blur-sm"

@@ -16,6 +16,10 @@ function TourContent() {
   const destination = searchParams.get("destination") || "italy";
   const langCode = searchParams.get("lang") || "en";
 
+  // Query overrides for testing
+  const latParam = searchParams.get("lat");
+  const lngParam = searchParams.get("lng");
+
   // Core state
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,15 +61,39 @@ function TourContent() {
     setNearbyLandmark(nearby);
   }, []);
 
-  // TTS helper
+  const [initialQuerySent, setInitialQuerySent] = useState(false);
+
+  // TTS helper — uses server-side Google Cloud Text-to-Speech (Neural2)
+  // instead of the browser voices.  The server returns a base64‑encoded MP3
+  // which we play with an <audio> element.  We still fall back to the browser
+  // if the fetch fails.
   const speakText = useCallback(
-    (text: string) => {
-      if (!ttsEnabled || typeof window === "undefined" || !window.speechSynthesis)
-        return;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = langCode === "es" ? "es-ES" : "en-US";
-      utterance.rate = 0.9;
-      window.speechSynthesis.speak(utterance);
+    async (text: string) => {
+      if (!ttsEnabled || typeof window === "undefined") return;
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, langCode }),
+        });
+        if (res.ok) {
+          const b64 = await res.text();
+          const audio = new Audio(`data:audio/mpeg;base64,${b64}`);
+          audio.play().catch(() => {
+            /* ignore play errors */
+          });
+          return;
+        }
+        throw new Error("TTS endpoint returned " + res.status);
+      } catch (e) {
+        console.error("TTS fetch failed, falling back to browser: ", e);
+        if (typeof window !== "undefined" && window.speechSynthesis) {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = langCode === "es" ? "es-ES" : "en-US";
+          utterance.rate = 0.9;
+          window.speechSynthesis.speak(utterance);
+        }
+      }
     },
     [ttsEnabled, langCode]
   );
@@ -126,10 +154,7 @@ function TourContent() {
         console.error("Commentary error:", error);
         setMessages((prev) => [
           ...prev,
-          {
-            role: "assistant",
-            content: "Sorry, I had trouble generating commentary. Please try again.",
-          },
+          { role: "assistant", content: "Sorry, I had trouble generating commentary. Please try again." },
         ]);
         setStreamingText("");
       } finally {
@@ -138,6 +163,23 @@ function TourContent() {
     },
     [messages, destination, langCode, speakText]
   );
+
+  // If the URL provides explicit coordinates (for testing), apply them once and
+  // optionally send an automatic "What am I looking at?" query so the user
+  // doesn’t need to tap or type anything.
+  useEffect(() => {
+    if (latParam && lngParam) {
+      const lat = parseFloat(latParam);
+      const lng = parseFloat(lngParam);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        handleLocationUpdate(lat, lng);
+        if (!initialQuerySent) {
+          sendToAPI("What am I looking at? Tell me about this place.");
+          setInitialQuerySent(true);
+        }
+      }
+    }
+  }, [latParam, lngParam, handleLocationUpdate, sendToAPI, initialQuerySent]);
 
   // Camera capture handler
   const handleCapture = useCallback(

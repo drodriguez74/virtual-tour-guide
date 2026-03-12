@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { StoryChapter, Landmark } from "@/lib/landmarks";
 
 interface StorySelectorProps {
@@ -13,9 +14,28 @@ export default function StorySelector({
   onSelectChapter,
   onClose,
 }: StorySelectorProps) {
+  const [customTopic, setCustomTopic] = useState("");
+
+  const handleCustomStory = () => {
+    if (!customTopic.trim()) return;
+    const customChapter: StoryChapter = {
+      id: `custom_${Date.now()}`,
+      title: customTopic.trim(),
+      description: "Custom story request",
+      prompt: `Create a vivid cinematic narration about "${customTopic.trim()}" in the context of ${landmark.name}. Make it historically accurate, dramatic, and engaging — like a BBC documentary. Cover the most fascinating and lesser-known details. About 200 words.`,
+    };
+    onSelectChapter(customChapter);
+  };
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 animate-slide-up">
-      <div className="rounded-t-3xl bg-stone-900 shadow-2xl">
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/40"
+        onClick={onClose}
+      />
+
+      <div className="relative rounded-t-3xl bg-stone-900 shadow-2xl">
         {/* Handle bar */}
         <div className="flex justify-center pt-3">
           <div className="h-1 w-10 rounded-full bg-stone-700" />
@@ -38,7 +58,7 @@ export default function StorySelector({
         </div>
 
         {/* Chapter cards */}
-        <div className="max-h-[50vh] space-y-3 overflow-y-auto px-6 pb-8 pt-2">
+        <div className="scrollbar-hide max-h-[50vh] space-y-3 overflow-y-auto px-6 pb-4 pt-2">
           {landmark.stories.map((chapter) => (
             <button
               key={chapter.id}
@@ -51,9 +71,33 @@ export default function StorySelector({
                   {chapter.description}
                 </p>
               </div>
-              <div className="shrink-0 text-2xl text-amber-500">▶</div>
+              <div className="shrink-0 text-2xl text-amber-500">&#9654;</div>
             </button>
           ))}
+        </div>
+
+        {/* Custom story request */}
+        <div className="border-t border-stone-800 px-6 pb-8 pt-4">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-stone-500">
+            Request a Custom Story
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={customTopic}
+              onChange={(e) => setCustomTopic(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleCustomStory()}
+              placeholder='e.g. "What did Romans smell like?"'
+              className="flex-1 rounded-xl bg-stone-800 px-4 py-2.5 text-sm text-white placeholder-stone-500 outline-none focus:ring-1 focus:ring-amber-500"
+            />
+            <button
+              onClick={handleCustomStory}
+              disabled={!customTopic.trim()}
+              className="shrink-0 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-400 disabled:opacity-40"
+            >
+              Go
+            </button>
+          </div>
         </div>
       </div>
 
