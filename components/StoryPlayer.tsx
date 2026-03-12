@@ -50,35 +50,70 @@ export default function StoryPlayer({
     };
   }, [isPaused, images.length]);
 
-  // TTS narration via server endpoint (/api/tts)
+  // TTS narration via server endpoint (/api/tts) – runs ONCE per narration change
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    setIsSpeaking(false);
+    if (typeof window === "undefined" || !narration || narration.trim().length === 0) {
+      return;
+    }
+
+    // Stop previous audio immediately
+    if (audioRef.current) {
+      try {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        audioRef.current.load();
+      } catch {}
+      audioRef.current = null;
+    }
+
+    let isMounted = true;
 
     const fetchAndPlay = async () => {
       try {
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: narration, languageCode: langCode === "es" ? "es-ES" : "en-US" }),
+          body: JSON.stringify({
+            text: narration,
+            languageCode: langCode === "es" ? "es-ES" : "en-US",
+          }),
         });
-        if (!res.ok) throw new Error("tts fetch failed");
+
+        if (!res.ok) throw new Error(`TTS request failed: ${res.status}`);
+
         const { audioContent } = await res.json();
+        if (!audioContent) throw new Error("No audio content returned");
+
+        // Only proceed if component is still mounted
+        if (!isMounted) return;
+
         const audio = new Audio(`data:audio/mpeg;base64,${audioContent}`);
+        audio.onplay = () => {
+          if (isMounted) setIsSpeaking(true);
+        };
+        audio.onpause = () => {
+          if (isMounted) setIsSpeaking(false);
+        };
+        audio.onended = () => {
+          if (isMounted) setIsSpeaking(false);
+        };
+
         audioRef.current = audio;
-        audio.onplay = () => setIsSpeaking(true);
-        audio.onended = () => setIsSpeaking(false);
-        audio.play().catch(() => {});
+        audio.play().catch((err) => console.warn("Audio play failed:", err));
       } catch (e) {
-        console.error("StoryPlayer TTS error", e);
+        console.error("StoryPlayer TTS error:", e);
       }
     };
 
     fetchAndPlay();
 
     return () => {
+      isMounted = false;
       if (audioRef.current) {
-        audioRef.current.pause();
+        try {
+          audioRef.current.pause();
+          audioRef.current.src = "";
+        } catch {}
         audioRef.current = null;
       }
     };
@@ -139,11 +174,27 @@ export default function StoryPlayer({
         Close
       </button>
 
-      {/* Subtitle */}
-      <div className="absolute inset-x-4 bottom-24 z-10">
-        <p className="rounded-lg bg-black/70 px-4 py-3 text-center text-sm leading-relaxed text-white backdrop-blur-sm">
-          {getCurrentSubtitle()}
-        </p>
+      {/* Scrollable Narration Text */}
+      <div className="absolute inset-x-4 bottom-24 z-10 max-h-48 overflow-y-auto rounded-lg bg-black/70 px-4 py-3 backdrop-blur-sm">
+        <div className="space-y-2">
+          {sentences.map((sentence, idx) => {
+            const sectionStart = currentIndex * sentencesPerImage;
+            const sectionEnd = sectionStart + sentencesPerImage;
+            const isCurrent = idx >= sectionStart && idx < sectionEnd;
+            return (
+              <p
+                key={idx}
+                className={`text-sm leading-relaxed transition-colors ${
+                  isCurrent
+                    ? "bg-amber-500/30 px-2 py-1 rounded text-amber-100 font-semibold"
+                    : "text-white/80"
+                }`}
+              >
+                {sentence}
+              </p>
+            );
+          })}
+        </div>
       </div>
 
       {/* Controls */}

@@ -62,6 +62,7 @@ function TourContent() {
   }, []);
 
   const [initialQuerySent, setInitialQuerySent] = useState(false);
+  const initialQuerySentRef = useRef(false);
 
   // TTS helper — uses server-side Google Cloud Text-to-Speech (Neural2)
   // instead of the browser voices.  The server returns a base64‑encoded MP3
@@ -168,18 +169,19 @@ function TourContent() {
   // optionally send an automatic "What am I looking at?" query so the user
   // doesn’t need to tap or type anything.
   useEffect(() => {
-    if (latParam && lngParam) {
+    if (latParam && lngParam && !initialQuerySentRef.current) {
       const lat = parseFloat(latParam);
       const lng = parseFloat(lngParam);
       if (!isNaN(lat) && !isNaN(lng)) {
         handleLocationUpdate(lat, lng);
-        if (!initialQuerySent) {
+        initialQuerySentRef.current = true;
+        // Use a timeout to ensure sendToAPI is called after state updates
+        setTimeout(() => {
           sendToAPI("What am I looking at? Tell me about this place.");
-          setInitialQuerySent(true);
-        }
+        }, 0);
       }
     }
-  }, [latParam, lngParam, handleLocationUpdate, sendToAPI, initialQuerySent]);
+  }, [latParam, lngParam, handleLocationUpdate, sendToAPI]);
 
   // Camera capture handler
   const handleCapture = useCallback(
@@ -377,7 +379,7 @@ function TourContent() {
 
       {/* Commentary panel - bottom section */}
       {showPanel && (
-        <div className="flex-1">
+        <div className="flex-1 h-full min-h-0">
           <CommentaryPanel
             messages={messages}
             isLoading={isLoading}
@@ -388,6 +390,7 @@ function TourContent() {
             onNewLocation={handleNewLocation}
             ttsEnabled={ttsEnabled}
             onToggleTts={() => setTtsEnabled(!ttsEnabled)}
+            onClose={() => setShowPanel(false)}
           />
         </div>
       )}
@@ -396,7 +399,7 @@ function TourContent() {
       {!showPanel && messages.length > 0 && (
         <button
           onClick={() => setShowPanel(true)}
-          className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-full bg-stone-800/90 px-6 py-3 text-sm text-white shadow-lg backdrop-blur-sm"
+          className="absolute right-4 bottom-4 z-20 rounded-full bg-stone-800/90 px-6 py-3 text-sm text-white shadow-lg backdrop-blur-sm hover:bg-stone-700"
         >
           Show Commentary ({messages.filter((m) => m.role === "assistant").length})
         </button>

@@ -17,6 +17,7 @@ interface CommentaryPanelProps {
   isListening?: boolean;
   ttsEnabled: boolean;
   onToggleTts: () => void;
+  onClose?: () => void;
 }
 
 export default function CommentaryPanel({
@@ -29,15 +30,30 @@ export default function CommentaryPanel({
   isListening,
   ttsEnabled,
   onToggleTts,
+  onClose,
 }: CommentaryPanelProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    // Clear any pending scroll operations
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    // Scroll to bottom after DOM updates
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
+    }, 0);
+
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
   }, [messages, streamingText]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -50,9 +66,9 @@ export default function CommentaryPanel({
   return (
     <div className="flex h-full flex-col bg-stone-900/95 backdrop-blur-md">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-stone-800 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-stone-800 px-4 py-3 flex-shrink-0">
         <h2 className="font-semibold text-amber-400">Tour Commentary</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <button
             onClick={onToggleTts}
             className={`rounded-full px-3 py-1 text-xs transition-colors ${
@@ -71,13 +87,22 @@ export default function CommentaryPanel({
               New Location 📍
             </button>
           )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="rounded-full bg-stone-800 px-3 py-1 text-xs text-stone-400 hover:bg-stone-700"
+              title="Close panel"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="scrollbar-hide flex-1 space-y-3 overflow-y-auto p-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4"
       >
         {messages.length === 0 && !streamingText && (
           <div className="py-12 text-center text-stone-500">
@@ -128,7 +153,7 @@ export default function CommentaryPanel({
       {/* Input bar */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-2 border-t border-stone-800 p-3"
+        className="flex flex-shrink-0 items-center gap-2 border-t border-stone-800 p-3"
       >
         {onVoiceInput && (
           <button
@@ -158,6 +183,12 @@ export default function CommentaryPanel({
           ↑
         </button>
       </form>
+
+      <style jsx>{`
+        div[class*='overflow-y-auto'] {
+          scroll-behavior: smooth;
+        }
+      `}</style>
     </div>
   );
 }

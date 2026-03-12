@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const { text } = await req.json();
-    const apiKey = process.env.GOOGLE_API_KEY; // Your Gemini Key from AI Studio
+    const apiKey = process.env.GEMINI_SPEECH_API_KEY; // Your Gemini Key from AI Studio
 
     // 1. Use the dedicated Gemini TTS endpoint
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
