@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI, Content, Part } from "@google/generative-ai";
 import { getPrompt } from "@/lib/prompts";
 
+export const maxDuration = 60;
+
 // The commentary endpoint originally used Google Gemini, but the
 // `gemini-1.5-pro` model was returning a 404 (not found/unsupported) on the
 // v1beta API.  To make the app more robust we now allow switching the model

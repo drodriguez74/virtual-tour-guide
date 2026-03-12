@@ -64,44 +64,44 @@ function TourContent() {
   const [initialQuerySent, setInitialQuerySent] = useState(false);
   const initialQuerySentRef = useRef(false);
 
-  // TTS helper — uses server-side Google Cloud Text-to-Speech (Neural2)
-  // instead of the browser voices.  The server returns a base64‑encoded MP3
-  // which we play with an <audio> element.  We still fall back to the browser
-  // if the fetch fails.
+  // TTS helper — uses streaming chunked TTS endpoint for faster playback.
+  // Falls back to browser SpeechSynthesis if the server call fails.
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const speakText = useCallback(
     async (text: string) => {
       if (!ttsEnabled || typeof window === "undefined") return;
+
+      // Stop any previous TTS audio
+      if (ttsAudioRef.current) {
+        try {
+          const oldSrc = ttsAudioRef.current.src;
+          ttsAudioRef.current.pause();
+          ttsAudioRef.current.src = "";
+          if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
+        } catch {}
+        ttsAudioRef.current = null;
+      }
+
       try {
-        console.log('[TourPage] speakText called with TTS enabled, sending to /api/tts');
-        const res = await fetch("/api/tts", {
+        const res = await fetch("/api/tts-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, langCode }),
+          body: JSON.stringify({ text, destination, langCode }),
         });
-        
-        console.log('[TourPage] TTS response status:', res.status);
-        
-        if (res.ok) {
-          const { audioContent, mimeType = "audio/wav" } = await res.json();
-          console.log('[TourPage] Audio received, length:', audioContent?.length, 'mimeType:', mimeType);
-          
-          if (audioContent) {
-            const dataUrl = `data:${mimeType};base64,${audioContent}`;
-            console.log('[TourPage] Creating audio element');
-            const audio = new Audio(dataUrl);
-            audio.onerror = (e: any) => console.error('[TourPage] Audio error:', e);
-            console.log('[TourPage] Calling audio.play()');
-            audio.play().catch((err) => {
-              console.warn("[TourPage] Audio play failed:", err)
-            });
-            return;
-          }
-        }
-        throw new Error("TTS endpoint returned " + res.status);
-      } catch (e) {
-        console.error("[TourPage] TTS fetch failed:", e);
-        if (typeof window !== "undefined" && window.speechSynthesis) {
-          console.log('[TourPage] Falling back to browser SpeechSynthesis');
+
+        if (!res.ok || !res.body) throw new Error(`TTS ${res.status}`);
+
+        const arrayBuffer = await res.arrayBuffer();
+        const blob = new Blob([arrayBuffer], { type: "audio/wav" });
+        const blobUrl = URL.createObjectURL(blob);
+        const audio = new Audio(blobUrl);
+        ttsAudioRef.current = audio;
+        audio.play().catch((err) =>
+          console.warn("[TourPage] Audio play blocked:", err)
+        );
+      } catch {
+        // Fallback to browser speech synthesis
+        if (window.speechSynthesis) {
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = langCode === "es" ? "es-ES" : "en-US";
           utterance.rate = 0.9;
@@ -109,7 +109,7 @@ function TourContent() {
         }
       }
     },
-    [ttsEnabled, langCode]
+    [ttsEnabled, langCode, destination]
   );
 
   // Send message to commentary API
@@ -444,6 +444,7 @@ function TourContent() {
           narration={storyData.narration}
           images={storyData.images}
           langCode={langCode}
+          destination={destination}
           onClose={() => setStoryData(null)}
         />
       )}

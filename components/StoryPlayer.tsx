@@ -8,6 +8,7 @@ interface StoryPlayerProps {
   narration: string;
   images: string[];
   langCode: string;
+  destination: string;
   onClose: () => void;
 }
 
@@ -17,21 +18,18 @@ export default function StoryPlayer({
   narration,
   images,
   langCode,
+  destination,
   onClose,
 }: StoryPlayerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const sentences = narration.split(/(?<=[.!?])\s+/).filter(Boolean);
   const sentencesPerImage = Math.ceil(sentences.length / images.length);
-
-  const getCurrentSubtitle = useCallback(() => {
-    const start = currentIndex * sentencesPerImage;
-    return sentences.slice(start, start + sentencesPerImage).join(" ");
-  }, [currentIndex, sentencesPerImage, sentences]);
 
   // Auto-advance images
   useEffect(() => {
@@ -50,88 +48,78 @@ export default function StoryPlayer({
     };
   }, [isPaused, images.length]);
 
-  // TTS narration via server endpoint (/api/tts) – runs ONCE per narration change
+  // TTS — fetch streaming audio and play via blob URL
   useEffect(() => {
-    if (typeof window === "undefined" || !narration || narration.trim().length === 0) {
-      return;
-    }
+    if (!narration?.trim()) return;
 
-    // Stop previous audio immediately
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // Stop previous audio
     if (audioRef.current) {
       try {
         audioRef.current.pause();
+        const oldSrc = audioRef.current.src;
         audioRef.current.src = "";
         audioRef.current.load();
+        if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
       } catch {}
       audioRef.current = null;
     }
+    setAudioReady(false);
 
-    let isMounted = true;
-
-    const fetchAndPlay = async () => {
+    const fetchAudio = async () => {
       try {
-        console.log('[StoryPlayer] Fetching audio for narration...');
-        const res = await fetch("/api/tts", {
+        const res = await fetch("/api/tts-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: narration,
-            languageCode: langCode === "es" ? "es-ES" : "en-US",
-          }),
+          body: JSON.stringify({ text: narration, destination, langCode }),
+          signal: controller.signal,
         });
 
-        console.log('[StoryPlayer] TTS response status:', res.status);
-        if (!res.ok) throw new Error(`TTS request failed: ${res.status}`);
+        if (!res.ok || !res.body) throw new Error(`TTS failed: ${res.status}`);
 
-        const { audioContent, mimeType = "audio/wav" } = await res.json();
-        console.log('[StoryPlayer] Audio received, length:', audioContent?.length, 'mimeType:', mimeType);
-        
-        if (!audioContent) throw new Error("No audio content returned");
+        const arrayBuffer = await res.arrayBuffer();
+        if (controller.signal.aborted) return;
 
-        // Only proceed if component is still mounted
-        if (!isMounted) return;
+        const blob = new Blob([arrayBuffer], { type: "audio/wav" });
+        const blobUrl = URL.createObjectURL(blob);
 
-        const dataUrl = `data:${mimeType};base64,${audioContent}`;
-        console.log('[StoryPlayer] Creating audio element with data URL (length:', dataUrl.length, ')');
-        const audio = new Audio(dataUrl);
-        
-        audio.onplay = () => {
-          console.log('[StoryPlayer] Audio started playing');
-          if (isMounted) setIsSpeaking(true);
-        };
-        audio.onpause = () => {
-          console.log('[StoryPlayer] Audio paused');
-          if (isMounted) setIsSpeaking(false);
-        };
-        audio.onended = () => {
-          console.log('[StoryPlayer] Audio ended');
-          if (isMounted) setIsSpeaking(false);
-        };
-        audio.onerror = (e: any) => {
-          console.error('[StoryPlayer] Audio error:', e);
+        const audio = new Audio(blobUrl);
+        audio.onended = () => setAudioReady(false);
+        audio.onerror = () => {
+          console.error("[StoryPlayer] Audio playback error");
+          setAudioReady(false);
         };
 
         audioRef.current = audio;
-        console.log('[StoryPlayer] Calling audio.play()...');
-        audio.play().catch((err) => console.warn("[StoryPlayer] Audio play failed:", err));
-      } catch (e) {
+        setAudioReady(true);
+        audio.play().catch((err) =>
+          console.warn("[StoryPlayer] Auto-play blocked:", err)
+        );
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         console.error("[StoryPlayer] TTS error:", e);
       }
     };
 
-    fetchAndPlay();
+    fetchAudio();
 
     return () => {
-      isMounted = false;
+      controller.abort();
       if (audioRef.current) {
         try {
+          const oldSrc = audioRef.current.src;
           audioRef.current.pause();
           audioRef.current.src = "";
+          if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
         } catch {}
         audioRef.current = null;
       }
     };
-  }, [narration, langCode]);
+  }, [narration, langCode, destination]);
 
   const togglePause = () => {
     if (audioRef.current) {
@@ -142,6 +130,18 @@ export default function StoryPlayer({
       }
     }
     setIsPaused(!isPaused);
+  };
+
+  const handleClose = () => {
+    if (audioRef.current) {
+      try {
+        const oldSrc = audioRef.current.src;
+        audioRef.current.pause();
+        audioRef.current.src = "";
+        if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
+      } catch {}
+    }
+    onClose();
   };
 
   return (
@@ -158,7 +158,9 @@ export default function StoryPlayer({
             }`}
             style={{
               animation:
-                i === currentIndex ? "kenburns 8s ease-in-out forwards" : "none",
+                i === currentIndex
+                  ? "kenburns 8s ease-in-out forwards"
+                  : "none",
             }}
           />
         ))}
@@ -174,19 +176,21 @@ export default function StoryPlayer({
 
       {/* Close button */}
       <button
-        onClick={() => {
-          if (audioRef.current) {
-            try {
-              audioRef.current.pause();
-              audioRef.current.currentTime = 0;
-            } catch {}
-          }
-          onClose();
-        }}
+        onClick={handleClose}
         className="absolute right-4 top-4 z-10 rounded-full bg-black/60 px-3 py-1 text-sm text-white backdrop-blur-sm"
       >
         Close
       </button>
+
+      {/* Audio loading indicator */}
+      {!audioReady && (
+        <div className="absolute left-1/2 top-16 z-10 -translate-x-1/2">
+          <div className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-xs text-white/70 backdrop-blur-sm">
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+            Generating audio...
+          </div>
+        </div>
+      )}
 
       {/* Scrollable Narration Text */}
       <div className="absolute inset-x-4 bottom-24 z-10 max-h-48 overflow-y-auto rounded-lg bg-black/70 px-4 py-3 backdrop-blur-sm">
@@ -200,7 +204,7 @@ export default function StoryPlayer({
                 key={idx}
                 className={`text-sm leading-relaxed transition-colors ${
                   isCurrent
-                    ? "bg-amber-500/30 px-2 py-1 rounded text-amber-100 font-semibold"
+                    ? "rounded bg-amber-500/30 px-2 py-1 font-semibold text-amber-100"
                     : "text-white/80"
                 }`}
               >
@@ -217,7 +221,7 @@ export default function StoryPlayer({
           onClick={togglePause}
           className="rounded-full bg-white/20 px-6 py-2 text-white backdrop-blur-sm"
         >
-          {isPaused ? "▶ Play" : "⏸ Pause"}
+          {isPaused ? "\u25b6 Play" : "\u23f8 Pause"}
         </button>
         <div className="flex gap-1">
           {images.map((_, i) => (

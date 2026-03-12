@@ -1,5 +1,8 @@
 import OpenAI from "openai";
 
+// Vercel serverless config — extend timeout for GPT-4o + DALL-E pipeline
+export const maxDuration = 60; // seconds (requires Vercel Pro for >10s)
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
@@ -101,10 +104,12 @@ Return ONLY the DALL-E prompt text, nothing else. No preamble, no explanation. M
     }
 
     return Response.json({ imageUrl });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Heyday API error:", error);
+    const message =
+      error?.message || error?.code || "Failed to generate historical image";
     return Response.json(
-      { error: "Failed to generate historical image" },
+      { error: message },
       { status: 500 }
     );
   }
