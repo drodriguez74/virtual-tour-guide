@@ -26,17 +26,39 @@ export default function Home() {
   const [destination, setDestination] = useState("italy");
   const [customDestination, setCustomDestination] = useState("");
   const [langCode, setLangCode] = useState("en");
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   const activeBg = useMemo(
     () => BACKGROUND_IMAGES[destination] || BACKGROUND_IMAGES.custom,
     [destination]
   );
 
-  const handleStartTour = () => {
+  const handleStartTour = async () => {
     const dest =
       destination === "custom" ? customDestination.trim() : destination;
     if (!dest) return;
-    const coords = DEFAULT_COORDS[destination];
+
+    let coords = DEFAULT_COORDS[destination];
+
+    if (destination === "custom" && !coords) {
+      setIsGeocoding(true);
+      try {
+        const res = await fetch("/api/geocode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: dest }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          coords = { lat: data.lat, lng: data.lng };
+        }
+      } catch {
+        // Graceful degradation — navigate without coords
+      } finally {
+        setIsGeocoding(false);
+      }
+    }
+
     const coordsQuery = coords ? `&lat=${coords.lat}&lng=${coords.lng}` : "";
     router.push(
       `/tour?destination=${encodeURIComponent(dest)}&lang=${langCode}${coordsQuery}`
@@ -44,8 +66,9 @@ export default function Home() {
   };
 
   const isReady =
-    destination !== "custom" ||
-    (destination === "custom" && customDestination.trim().length > 0);
+    !isGeocoding &&
+    (destination !== "custom" ||
+      (destination === "custom" && customDestination.trim().length > 0));
 
   return (
     <main className="relative flex min-h-screen flex-col items-center overflow-hidden">
@@ -176,7 +199,7 @@ export default function Home() {
         {/* ── CTA Button ── */}
         <div className="animate-fade-up delay-400 mt-8 w-full">
           <button
-            onClick={handleStartTour}
+            onClick={() => void handleStartTour()}
             disabled={!isReady}
             className="group relative w-full overflow-hidden rounded-2xl py-4 text-lg font-bold text-white shadow-2xl transition-all duration-300 hover:shadow-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
             style={{
@@ -194,20 +217,27 @@ export default function Home() {
               }}
             />
             <span className="relative z-10 flex items-center justify-center gap-2">
-              Start Tour
-              <svg
-                className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-                />
-              </svg>
+              {isGeocoding ? "Locating..." : "Start Tour"}
+              {isGeocoding ? (
+                <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg
+                  className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+                  />
+                </svg>
+              )}
             </span>
           </button>
 

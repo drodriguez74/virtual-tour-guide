@@ -131,7 +131,7 @@ export default function DestinationSelector({
         </div>
         <input
           type="text"
-          placeholder="Or search any destination..."
+          placeholder="Search any place — Machu Picchu, Taj Mahal..."
           value={selected === "custom" ? customValue : ""}
           onFocus={() => onSelect("custom")}
           onChange={(e) => {

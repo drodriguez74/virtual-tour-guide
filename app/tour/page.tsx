@@ -10,6 +10,7 @@ import HeyDayModal from "@/components/HeyDayModal";
 import StorySelector from "@/components/StorySelector";
 import StoryPlayer from "@/components/StoryPlayer";
 import { findNearbyLandmark, Landmark, StoryChapter } from "@/lib/landmarks";
+import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
 
 function TourContent() {
   const searchParams = useSearchParams();
@@ -70,6 +71,9 @@ function TourContent() {
     async (text: string) => {
       if (!ttsEnabled || typeof window === "undefined") return;
 
+      // Stop any previous browser TTS fallback
+      stopBrowserTTS();
+
       // Stop any previous TTS audio
       if (ttsAudioRef.current) {
         try {
@@ -101,7 +105,8 @@ function TourContent() {
           console.warn("[TourPage] Audio play blocked:", err)
         );
       } catch (err) {
-        console.warn("[TourPage] TTS stream failed, no audio:", err);
+        console.warn("[TourPage] TTS stream failed, falling back to browser TTS:", err);
+        speakWithBrowserTTS(text, langCode);
       }
     },
     [ttsEnabled, langCode, destination]

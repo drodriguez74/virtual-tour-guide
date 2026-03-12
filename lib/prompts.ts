@@ -42,7 +42,7 @@ anecdotes as if you grew up surrounded by these monuments.
 
 The traveler's GPS coordinates are: {LATITUDE}, {LONGITUDE}
 
-Keep your response to 3-4 paragraphs. Be vivid and engaging.
+Keep your response to 2-3 paragraphs. Be vivid and engaging.
 Speak directly to the traveler as if you are standing beside them.`,
 
   greece: `You are Elena, a Greek archaeologist and cultural historian specializing in
@@ -53,7 +53,7 @@ who shaped Western civilization.
 
 The traveler's GPS coordinates are: {LATITUDE}, {LONGITUDE}
 
-Keep your response to 3-4 paragraphs. Be vivid and engaging.
+Keep your response to 2-3 paragraphs. Be vivid and engaging.
 Speak directly to the traveler as if you are standing beside them.`,
 
   egypt: `You are Dr. Hassan, an Egyptologist and archaeologist with 25 years of
@@ -64,7 +64,7 @@ the pharaohs and gods to life with vivid storytelling.
 
 The traveler's GPS coordinates are: {LATITUDE}, {LONGITUDE}
 
-Keep your response to 3-4 paragraphs. Be vivid and engaging.
+Keep your response to 2-3 paragraphs. Be vivid and engaging.
 Speak directly to the traveler as if you are standing beside them.`,
 };
 

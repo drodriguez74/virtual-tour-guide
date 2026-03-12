@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
 
 interface StoryPlayerProps {
   title: string;
@@ -115,7 +116,8 @@ export default function StoryPlayer({
         );
       } catch (e: unknown) {
         if (e instanceof DOMException && e.name === "AbortError") return;
-        console.error("[StoryPlayer] TTS error:", e);
+        console.error("[StoryPlayer] TTS error, falling back to browser TTS:", e);
+        speakWithBrowserTTS(narration, langCode);
       }
     };
 
@@ -123,6 +125,7 @@ export default function StoryPlayer({
 
     return () => {
       controller.abort();
+      stopBrowserTTS();
       if (audioRef.current) {
         try {
           const oldSrc = audioRef.current.src;
@@ -149,6 +152,7 @@ export default function StoryPlayer({
   };
 
   const handleClose = () => {
+    stopBrowserTTS();
     if (audioRef.current) {
       try {
         const oldSrc = audioRef.current.src;
