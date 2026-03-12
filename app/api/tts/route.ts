@@ -8,7 +8,8 @@ const MAX_CHUNK_LENGTH = 300; // characters per chunk — keeps each TTS call fa
  * If a single sentence exceeds the limit it gets its own chunk.
  */
 function splitIntoChunks(text: string): string[] {
-  const sentences = text.match(/[^.!?]+[.!?]+\s*/g) || [text];
+  // Handles Spanish ¿¡ by treating them as sentence-start markers.
+  const sentences = text.match(/[¿¡]?[^.!?¿¡]+[.!?]+\s*/g) || [text];
   const chunks: string[] = [];
   let current = "";
 

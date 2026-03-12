@@ -17,7 +17,9 @@ export const maxDuration = 60;
 const MAX_CHUNK_LENGTH = 300;
 
 function splitIntoChunks(text: string): string[] {
-  const sentences = text.match(/[^.!?]+[.!?]+\s*/g) || [text];
+  // Split on sentence-ending punctuation, keeping the punctuation attached.
+  // Handles Spanish ¿¡ by treating them as sentence-start markers.
+  const sentences = text.match(/[¿¡]?[^.!?¿¡]+[.!?]+\s*/g) || [text];
   const chunks: string[] = [];
   let current = "";
   for (const sentence of sentences) {

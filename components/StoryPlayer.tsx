@@ -28,7 +28,7 @@ export default function StoryPlayer({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const sentences = narration.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const sentences = narration.split(/(?<=[.!?])\s+(?=[¿¡A-ZÀ-ÿ])/).filter(Boolean);
   const sentencesPerImage = Math.ceil(sentences.length / images.length);
 
   // Auto-advance images
