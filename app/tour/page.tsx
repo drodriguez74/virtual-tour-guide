@@ -25,7 +25,7 @@ function TourContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [showPanel, setShowPanel] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true);
 
   // Location
   const coordsRef = useRef<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
@@ -65,7 +65,6 @@ function TourContent() {
   const initialQuerySentRef = useRef(false);
 
   // TTS helper — uses streaming chunked TTS endpoint for faster playback.
-  // Falls back to browser SpeechSynthesis if the server call fails.
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const speakText = useCallback(
     async (text: string) => {
@@ -78,7 +77,9 @@ function TourContent() {
           ttsAudioRef.current.pause();
           ttsAudioRef.current.src = "";
           if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-        } catch {}
+        } catch (e) {
+          console.warn("[TourPage] Error cleaning up previous audio:", e);
+        }
         ttsAudioRef.current = null;
       }
 
@@ -99,14 +100,8 @@ function TourContent() {
         audio.play().catch((err) =>
           console.warn("[TourPage] Audio play blocked:", err)
         );
-      } catch {
-        // Fallback to browser speech synthesis
-        if (window.speechSynthesis) {
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = langCode === "es" ? "es-ES" : "en-US";
-          utterance.rate = 0.9;
-          window.speechSynthesis.speak(utterance);
-        }
+      } catch (err) {
+        console.warn("[TourPage] TTS stream failed, no audio:", err);
       }
     },
     [ttsEnabled, langCode, destination]
@@ -261,9 +256,11 @@ function TourContent() {
       const data = await response.json();
       if (data.imageUrl) {
         setHeyDayImage(data.imageUrl);
+      } else {
+        console.error("[TourPage] Heyday returned no image:", data);
       }
     } catch (error) {
-      console.error("Heyday error:", error);
+      console.error("[TourPage] Heyday error:", error);
     } finally {
       setHeyDayLoading(false);
     }
@@ -305,9 +302,11 @@ function TourContent() {
           };
           sessionStorage.setItem(cacheKey, JSON.stringify(story));
           setStoryData(story);
+        } else {
+          console.error("[TourPage] Story returned incomplete data:", data);
         }
       } catch (error) {
-        console.error("Story error:", error);
+        console.error("[TourPage] Story error:", error);
       } finally {
         setStoryLoading(false);
       }

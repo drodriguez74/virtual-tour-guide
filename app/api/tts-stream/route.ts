@@ -17,12 +17,27 @@ export const maxDuration = 60;
 const MAX_CHUNK_LENGTH = 300;
 
 function splitIntoChunks(text: string): string[] {
-  // Split on sentence-ending punctuation, keeping the punctuation attached.
-  // Handles Spanish ¿¡ by treating them as sentence-start markers.
-  const sentences = text.match(/[¿¡]?[^.!?¿¡]+[.!?]+\s*/g) || [text];
+  // Split on sentence-ending punctuation (.!?), preserving Spanish ¿¡ markers.
+  // Also handles text that lacks terminal punctuation (colons, semicolons,
+  // ellipses, or just commas) — the fallback ensures nothing is dropped.
+  const sentences = text.match(/[¿¡]?[^.!?¿¡]*[.!?]+\s*/g);
+
+  if (!sentences) {
+    // No sentence-ending punctuation found — treat the whole text as one chunk
+    return text.trim() ? [text.trim()] : [];
+  }
+
+  // Check if the regex missed trailing text (e.g. "…and so on" with no period)
+  const matched = sentences.join("");
+  const remainder = text.slice(matched.length).trim();
+
+  const allSentences = remainder
+    ? [...sentences, remainder]
+    : sentences;
+
   const chunks: string[] = [];
   let current = "";
-  for (const sentence of sentences) {
+  for (const sentence of allSentences) {
     if (current.length + sentence.length > MAX_CHUNK_LENGTH && current) {
       chunks.push(current.trim());
       current = "";
@@ -36,30 +51,47 @@ function splitIntoChunks(text: string): string[] {
 async function synthesizeChunk(
   text: string,
   voiceName: string,
-  apiKey: string
+  apiKey: string,
+  chunkIndex: number
 ): Promise<Buffer | null> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text }] }],
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+          },
         },
-      },
-    }),
-  });
+      }),
+    });
 
-  if (!res.ok) return null;
-  const data = await res.json();
-  const base64Pcm = data.candidates?.[0]?.content?.parts?.find(
-    (p: { inlineData?: { data: string } }) => p.inlineData
-  )?.inlineData?.data;
-  return base64Pcm ? Buffer.from(base64Pcm, "base64") : null;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`[tts-stream] Chunk ${chunkIndex} failed (${res.status}): ${errBody.slice(0, 200)}`);
+      return null;
+    }
+
+    const data = await res.json();
+    const base64Pcm = data.candidates?.[0]?.content?.parts?.find(
+      (p: { inlineData?: { data: string } }) => p.inlineData
+    )?.inlineData?.data;
+
+    if (!base64Pcm) {
+      console.warn(`[tts-stream] Chunk ${chunkIndex} returned no audio data. Text: "${text.slice(0, 80)}..."`);
+      return null;
+    }
+
+    return Buffer.from(base64Pcm, "base64");
+  } catch (err) {
+    console.error(`[tts-stream] Chunk ${chunkIndex} exception:`, err);
+    return null;
+  }
 }
 
 function buildWavHeader(pcmByteLength: number): Buffer {
@@ -94,9 +126,11 @@ export async function POST(req: Request) {
     const voiceName = getVoice(destination, langCode);
     const chunks = splitIntoChunks(text);
 
+    console.log(`[tts-stream] voice=${voiceName} lang=${langCode} dest=${destination} chunks=${chunks.length} textLen=${text.length}`);
+
     // Fire all chunk requests in parallel — store promises in order
-    const chunkPromises = chunks.map((chunk) =>
-      synthesizeChunk(chunk, voiceName, apiKey)
+    const chunkPromises = chunks.map((chunk, i) =>
+      synthesizeChunk(chunk, voiceName, apiKey, i)
     );
 
     // We need the total PCM length for the WAV header upfront.
@@ -106,7 +140,12 @@ export async function POST(req: Request) {
     const pcmBuffers = await Promise.all(chunkPromises);
 
     const validBuffers = pcmBuffers.filter(Boolean) as Buffer[];
+    const failedCount = pcmBuffers.length - validBuffers.length;
+    if (failedCount > 0) {
+      console.warn(`[tts-stream] ${failedCount}/${pcmBuffers.length} chunks failed`);
+    }
     if (validBuffers.length === 0) {
+      console.error("[tts-stream] All chunks failed — no audio generated");
       return new Response("No audio generated", { status: 500 });
     }
 
@@ -130,8 +169,8 @@ export async function POST(req: Request) {
         "Transfer-Encoding": "chunked",
       },
     });
-  } catch (error) {
-    console.error("TTS stream error:", error);
-    return new Response("Internal Server Error", { status: 500 });
+  } catch (error: any) {
+    console.error("[tts-stream] error:", error?.message || error);
+    return new Response(error?.message || "Internal Server Error", { status: 500 });
   }
 }

@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     }
 
     const language = langCode === "es" ? "Spanish" : "English";
+    console.log(`[story] lang=${langCode} promptLen=${storyPrompt.length}`);
 
     // Generate narration script + scene prompts
     const scriptResponse = await openai.chat.completions.create({
@@ -62,10 +63,10 @@ Return ONLY valid JSON, no markdown.`,
       narration: parsed.narration,
       images: imageUrls.filter(Boolean),
     });
-  } catch (error) {
-    console.error("Story API error:", error);
+  } catch (error: any) {
+    console.error("[story] API error:", error?.message || error);
     return Response.json(
-      { error: "Failed to generate story" },
+      { error: error?.message || "Failed to generate story" },
       { status: 500 }
     );
   }

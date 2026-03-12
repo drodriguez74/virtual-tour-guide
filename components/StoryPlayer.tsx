@@ -28,7 +28,19 @@ export default function StoryPlayer({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const sentences = narration.split(/(?<=[.!?])\s+(?=[¿¡A-ZÀ-ÿ])/).filter(Boolean);
+  // Split narration into displayable sentences. Uses the same approach as
+  // the TTS chunker so sentence boundaries stay aligned.
+  const sentences = (narration.match(/[¿¡]?[^.!?¿¡]*[.!?]+\s*/g) || [narration])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Capture any trailing text without terminal punctuation
+  const matchedLen = sentences.join(" ").length;
+  if (matchedLen < narration.trim().length) {
+    const remainder = narration.slice(
+      (narration.match(/[¿¡]?[^.!?¿¡]*[.!?]+\s*/g) || []).join("").length
+    ).trim();
+    if (remainder) sentences.push(remainder);
+  }
   const sentencesPerImage = Math.ceil(sentences.length / images.length);
 
   // Auto-advance images
@@ -65,7 +77,9 @@ export default function StoryPlayer({
         audioRef.current.src = "";
         audioRef.current.load();
         if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-      } catch {}
+      } catch (e) {
+        console.warn("[StoryPlayer] Error cleaning up previous audio:", e);
+      }
       audioRef.current = null;
     }
     setAudioReady(false);
@@ -115,7 +129,9 @@ export default function StoryPlayer({
           audioRef.current.pause();
           audioRef.current.src = "";
           if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-        } catch {}
+        } catch (e) {
+          console.warn("[StoryPlayer] Cleanup error:", e);
+        }
         audioRef.current = null;
       }
     };
@@ -139,7 +155,9 @@ export default function StoryPlayer({
         audioRef.current.pause();
         audioRef.current.src = "";
         if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-      } catch {}
+      } catch (e) {
+        console.warn("[StoryPlayer] Close cleanup error:", e);
+      }
     }
     onClose();
   };

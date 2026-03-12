@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getVoice } from "@/lib/voices";
 
+export const maxDuration = 60;
+
 const MAX_CHUNK_LENGTH = 300; // characters per chunk — keeps each TTS call fast
 
 /**
@@ -8,12 +10,22 @@ const MAX_CHUNK_LENGTH = 300; // characters per chunk — keeps each TTS call fa
  * If a single sentence exceeds the limit it gets its own chunk.
  */
 function splitIntoChunks(text: string): string[] {
-  // Handles Spanish ¿¡ by treating them as sentence-start markers.
-  const sentences = text.match(/[¿¡]?[^.!?¿¡]+[.!?]+\s*/g) || [text];
+  // Split on sentence-ending punctuation (.!?), preserving Spanish ¿¡ markers.
+  const sentences = text.match(/[¿¡]?[^.!?¿¡]*[.!?]+\s*/g);
+
+  if (!sentences) {
+    return text.trim() ? [text.trim()] : [];
+  }
+
+  // Capture any trailing text the regex missed (no terminal punctuation)
+  const matched = sentences.join("");
+  const remainder = text.slice(matched.length).trim();
+  const allSentences = remainder ? [...sentences, remainder] : sentences;
+
   const chunks: string[] = [];
   let current = "";
 
-  for (const sentence of sentences) {
+  for (const sentence of allSentences) {
     if (current.length + sentence.length > MAX_CHUNK_LENGTH && current) {
       chunks.push(current.trim());
       current = "";
@@ -33,32 +45,47 @@ function splitIntoChunks(text: string): string[] {
 async function synthesizeChunk(
   text: string,
   voiceName: string,
-  apiKey: string
+  apiKey: string,
+  chunkIndex: number
 ): Promise<string | null> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text }] }],
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+          },
         },
-      },
-    }),
-  });
+      }),
+    });
 
-  if (!res.ok) return null;
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`[tts] Chunk ${chunkIndex} failed (${res.status}): ${errBody.slice(0, 200)}`);
+      return null;
+    }
 
-  const data = await res.json();
-  const base64Pcm = data.candidates?.[0]?.content?.parts?.find(
-    (p: { inlineData?: { data: string } }) => p.inlineData
-  )?.inlineData?.data;
+    const data = await res.json();
+    const base64Pcm = data.candidates?.[0]?.content?.parts?.find(
+      (p: { inlineData?: { data: string } }) => p.inlineData
+    )?.inlineData?.data;
 
-  return base64Pcm || null;
+    if (!base64Pcm) {
+      console.warn(`[tts] Chunk ${chunkIndex} returned no audio data. Text: "${text.slice(0, 80)}..."`);
+      return null;
+    }
+
+    return base64Pcm;
+  } catch (err) {
+    console.error(`[tts] Chunk ${chunkIndex} exception:`, err);
+    return null;
+  }
 }
 
 /**
@@ -99,10 +126,11 @@ export async function POST(req: Request) {
     const voiceName = getVoice(destination, langCode);
 
     const chunks = splitIntoChunks(text);
+    console.log(`[tts] voice=${voiceName} lang=${langCode} dest=${destination} chunks=${chunks.length} textLen=${text.length}`);
 
     // If short text (single chunk), use the fast non-chunked path
     if (chunks.length === 1) {
-      const pcmBase64 = await synthesizeChunk(chunks[0], voiceName, apiKey);
+      const pcmBase64 = await synthesizeChunk(chunks[0], voiceName, apiKey, 0);
       if (!pcmBase64) {
         return NextResponse.json({ error: "No audio" }, { status: 500 });
       }
@@ -116,7 +144,7 @@ export async function POST(req: Request) {
 
     // For longer text, synthesize all chunks in parallel
     const results = await Promise.all(
-      chunks.map((chunk) => synthesizeChunk(chunk, voiceName, apiKey))
+      chunks.map((chunk, i) => synthesizeChunk(chunk, voiceName, apiKey, i))
     );
 
     // Concatenate all PCM buffers (skip failed chunks)
@@ -141,10 +169,10 @@ export async function POST(req: Request) {
       audioContent: wav.toString("base64"),
       mimeType: "audio/wav",
     });
-  } catch (error) {
-    console.error("TTS error:", error);
+  } catch (error: any) {
+    console.error("[tts] error:", error?.message || error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: error?.message || "Internal Server Error" },
       { status: 500 }
     );
   }

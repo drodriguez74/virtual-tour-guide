@@ -13,6 +13,12 @@ const BACKGROUND_IMAGES: Record<string, string> = {
   custom: "/backgrounds/default.jpg",
 };
 
+const DEFAULT_COORDS: Record<string, { lat: number; lng: number }> = {
+  italy: { lat: 41.8902, lng: 12.4922 },   // Colosseum, Rome
+  greece: { lat: 37.9715, lng: 23.7267 },   // Acropolis, Athens
+  egypt: { lat: 29.9792, lng: 31.1342 },    // Great Pyramid, Giza
+};
+
 const ALL_BG_KEYS = Object.keys(BACKGROUND_IMAGES);
 
 export default function Home() {
@@ -30,8 +36,10 @@ export default function Home() {
     const dest =
       destination === "custom" ? customDestination.trim() : destination;
     if (!dest) return;
+    const coords = DEFAULT_COORDS[destination];
+    const coordsQuery = coords ? `&lat=${coords.lat}&lng=${coords.lng}` : "";
     router.push(
-      `/tour?destination=${encodeURIComponent(dest)}&lang=${langCode}`
+      `/tour?destination=${encodeURIComponent(dest)}&lang=${langCode}${coordsQuery}`
     );
   };
 

@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     } = await req.json();
 
     const systemPrompt = getPrompt(destination, langCode, latitude, longitude);
+    console.log(`[commentary] dest=${destination} lang=${langCode} lat=${latitude} lng=${longitude} msgs=${messages?.length || 0} hasImage=${!!imageBase64}`);
 
     // Build conversation history if any
     const history: Content[] = [];
@@ -127,8 +128,11 @@ export async function POST(req: Request) {
         "Transfer-Encoding": "chunked",
       },
     });
-  } catch (error) {
-    console.error("Commentary API error:", error);
-    return Response.json({ error: "Failed to generate commentary" }, { status: 500 });
+  } catch (error: any) {
+    console.error("[commentary] API error:", error?.message || error);
+    return Response.json(
+      { error: error?.message || "Failed to generate commentary" },
+      { status: 500 }
+    );
   }
 }
