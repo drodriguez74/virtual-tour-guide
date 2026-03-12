@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -33,7 +33,9 @@ Return a JSON object with:
   - "id": a snake_case identifier (e.g. "construction_history")
   - "title": a short compelling title (in ${language})
   - "description": one sentence describing the story angle (in ${language})
-  - "prompt": a detailed prompt for a documentary narrator to create a ~200 word cinematic narration about this specific story angle. The prompt should request historically accurate, dramatic, engaging content. Always in English regardless of language setting.`,
+  - "prompt": a detailed prompt for a documentary narrator to create a ~200 word cinematic narration about this specific story angle. The prompt should request historically accurate, dramatic, engaging content. Always in English regardless of language setting.
+
+Return ONLY valid JSON, no markdown.`,
         },
         {
           role: "user",
@@ -41,7 +43,6 @@ Return a JSON object with:
         },
       ],
       temperature: 0.7,
-      response_format: { type: "json_object" },
     });
 
     const text = response.choices[0]?.message?.content || "";
@@ -78,7 +79,8 @@ Return a JSON object with:
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Failed to discover stories";
-    console.error("[discover-stories] API error:", message);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("[discover-stories] API error:", message, stack);
     return Response.json({ error: message }, { status: 500 });
   }
 }
