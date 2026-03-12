@@ -37,7 +37,8 @@ Your prompt MUST:
 - Specify cinematic golden-hour lighting
 - Request hyper-realistic BBC documentary illustration style
 
-Return ONLY the DALL-E prompt text, nothing else. No preamble, no explanation. Max 300 words.`,
+Return your response as JSON with exactly this format (no markdown, no code fences):
+{"prompt": "<your DALL-E prompt, max 300 words>", "place": "<name of the place>", "year": "<year or era portrayed, e.g. 1920 or circa 300 BC>"}`,
         },
         {
           role: "user",
@@ -60,9 +61,26 @@ Return ONLY the DALL-E prompt text, nothing else. No preamble, no explanation. M
       temperature: 0.7,
     });
 
-    const dallePrompt =
-      analysisResponse.choices[0]?.message?.content ||
-      "Photorealistic historical scene of a famous location as it appeared in a past era — period-accurate architecture, people in authentic clothing, and era-appropriate vehicles and signage. Cinematic golden-hour lighting. Hyper-realistic BBC documentary illustration style.";
+    const rawAnalysis = analysisResponse.choices[0]?.message?.content || "";
+
+    let dallePrompt: string;
+    let caption: { place: string; year: string } = { place: "", year: "" };
+
+    try {
+      // Strip markdown code fences if present
+      const cleaned = rawAnalysis.replace(/```json\s*|```\s*/g, "").trim();
+      const parsed = JSON.parse(cleaned);
+      dallePrompt = parsed.prompt || rawAnalysis;
+      caption = { place: parsed.place || "", year: parsed.year || "" };
+    } catch {
+      // If JSON parsing fails, use the raw text as the prompt
+      dallePrompt = rawAnalysis;
+    }
+
+    if (!dallePrompt) {
+      dallePrompt =
+        "Photorealistic historical scene of a famous location as it appeared in a past era — period-accurate architecture, people in authentic clothing, and era-appropriate vehicles and signage. Cinematic golden-hour lighting. Hyper-realistic BBC documentary illustration style.";
+    }
 
     // Step 2: Generate the historical reconstruction with DALL-E 3.  Wrap in a
     // try/catch so that if the prompt is rejected by OpenAI's safety system we
@@ -111,7 +129,7 @@ Return ONLY the DALL-E prompt text, nothing else. No preamble, no explanation. M
       );
     }
 
-    return Response.json({ imageUrl });
+    return Response.json({ imageUrl, caption });
   } catch (error: any) {
     console.error("Heyday API error:", error);
     const message =

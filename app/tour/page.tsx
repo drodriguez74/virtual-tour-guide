@@ -40,6 +40,7 @@ function TourContent() {
 
   // Heyday
   const [heyDayImage, setHeyDayImage] = useState<string | null>(null);
+  const [heyDayCaption, setHeyDayCaption] = useState<{ place: string; year: string } | null>(null);
   const [heyDayLoading, setHeyDayLoading] = useState(false);
 
   // Story
@@ -51,6 +52,14 @@ function TourContent() {
     images: string[];
   } | null>(null);
   const [storyLoading, setStoryLoading] = useState(false);
+
+  // Dynamic story discovery
+  const [detectedPlace, setDetectedPlace] = useState<{
+    name: string;
+    description: string;
+  } | null>(null);
+  const [dynamicLandmark, setDynamicLandmark] = useState<Landmark | null>(null);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
 
   // Voice input
   const [isListening, setIsListening] = useState(false);
@@ -164,6 +173,15 @@ function TourContent() {
         ]);
         setStreamingText("");
         speakText(fullText);
+
+        // Extract place context for dynamic story discovery
+        if (fullText.length > 50) {
+          const firstParagraph = fullText.split("\n\n")[0] || fullText;
+          setDetectedPlace({
+            name: firstParagraph.slice(0, 60).replace(/[.!?].*/, "").trim(),
+            description: firstParagraph,
+          });
+        }
       } catch (error) {
         console.error("Commentary error:", error);
         setMessages((prev) => [
@@ -261,6 +279,7 @@ function TourContent() {
       const data = await response.json();
       if (data.imageUrl) {
         setHeyDayImage(data.imageUrl);
+        setHeyDayCaption(data.caption || null);
       } else {
         console.error("[TourPage] Heyday returned no image:", data);
       }
@@ -301,7 +320,7 @@ function TourContent() {
         if (data.narration && data.images?.length > 0) {
           const story = {
             title: chapter.title,
-            landmarkName: nearbyLandmark?.landmark.name || "",
+            landmarkName: nearbyLandmark?.landmark.name || dynamicLandmark?.name || "",
             narration: data.narration,
             images: data.images,
           };
@@ -316,13 +335,15 @@ function TourContent() {
         setStoryLoading(false);
       }
     },
-    [storyLoading, langCode, nearbyLandmark]
+    [storyLoading, langCode, nearbyLandmark, dynamicLandmark]
   );
 
   // New location: clear history
   const handleNewLocation = useCallback(() => {
     setMessages([]);
     setStreamingText("");
+    setDetectedPlace(null);
+    setDynamicLandmark(null);
     window.speechSynthesis?.cancel();
   }, []);
 
@@ -357,15 +378,46 @@ function TourContent() {
               </button>
             )}
 
-            {nearbyLandmark && (
+            {(nearbyLandmark || detectedPlace) && (
               <button
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  setShowStorySelector(true);
+                  if (nearbyLandmark) {
+                    setShowStorySelector(true);
+                  } else if (detectedPlace && !discoverLoading) {
+                    setDiscoverLoading(true);
+                    try {
+                      const res = await fetch("/api/discover-stories", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          placeDescription: detectedPlace.description,
+                          destination,
+                          langCode,
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data.placeName && data.stories?.length > 0) {
+                        const landmark: Landmark = {
+                          name: data.placeName,
+                          coords: coordsRef.current,
+                          radiusMeters: 0,
+                          stories: data.stories,
+                        };
+                        setDynamicLandmark(landmark);
+                        setShowStorySelector(true);
+                      }
+                    } catch (err) {
+                      console.error("[TourPage] Discover stories error:", err);
+                    } finally {
+                      setDiscoverLoading(false);
+                    }
+                  }
                 }}
-                className="rounded-full bg-purple-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm"
+                disabled={discoverLoading}
+                className="rounded-full bg-purple-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm disabled:opacity-50"
               >
-                Watch the Story
+                {discoverLoading ? "Discovering..." : "Watch the Story"}
               </button>
             )}
           </div>
@@ -427,14 +479,18 @@ function TourContent() {
         <HeyDayModal
           currentImage={lastCaptureRef.current}
           historicalImage={heyDayImage}
-          onClose={() => setHeyDayImage(null)}
+          caption={heyDayCaption}
+          onClose={() => {
+            setHeyDayImage(null);
+            setHeyDayCaption(null);
+          }}
         />
       )}
 
       {/* Story Selector */}
-      {showStorySelector && nearbyLandmark && (
+      {showStorySelector && (nearbyLandmark || dynamicLandmark) && (
         <StorySelector
-          landmark={nearbyLandmark.landmark}
+          landmark={nearbyLandmark?.landmark || dynamicLandmark!}
           onSelectChapter={handlePlayStory}
           onClose={() => setShowStorySelector(false)}
         />

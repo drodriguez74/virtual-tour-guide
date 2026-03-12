@@ -3,12 +3,14 @@
 interface HeyDayModalProps {
   currentImage: string;
   historicalImage: string;
+  caption?: { place: string; year: string } | null;
   onClose: () => void;
 }
 
 export default function HeyDayModal({
   currentImage,
   historicalImage,
+  caption,
   onClose,
 }: HeyDayModalProps) {
   const handleDownload = async () => {
@@ -53,6 +55,17 @@ export default function HeyDayModal({
             alt="Historical reconstruction"
             className="max-h-full rounded-lg object-contain"
           />
+          {caption && (caption.place || caption.year) && (
+            <p className="text-center text-sm text-stone-300">
+              {caption.place}
+              {caption.place && caption.year && " — "}
+              {caption.year && (
+                <span className="font-semibold text-amber-400">
+                  {caption.year}
+                </span>
+              )}
+            </p>
+          )}
         </div>
       </div>
 
