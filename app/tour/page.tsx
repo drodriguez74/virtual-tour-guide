@@ -9,8 +9,10 @@ import LocationBadge from "@/components/LocationBadge";
 import HeyDayModal from "@/components/HeyDayModal";
 import StorySelector from "@/components/StorySelector";
 import StoryPlayer from "@/components/StoryPlayer";
-import { findNearbyLandmark, Landmark, StoryChapter } from "@/lib/landmarks";
+import { findNearbyLandmark, findLandmarksWithinRadius, Landmark, StoryChapter, NearbyLandmarkWithDistance } from "@/lib/landmarks";
+import WalkingTour from "@/components/WalkingTour";
 import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
+import { getCachedStory, cacheStory } from "@/lib/story-cache";
 
 function stripMarkdown(text: string): string {
   return text
@@ -52,6 +54,7 @@ function TourContent() {
   const [heyDayImage, setHeyDayImage] = useState<string | null>(null);
   const [heyDayCaption, setHeyDayCaption] = useState<{ place: string; year: string } | null>(null);
   const [heyDayLoading, setHeyDayLoading] = useState(false);
+  const [showEraPicker, setShowEraPicker] = useState(false);
 
   // Story
   const [showStorySelector, setShowStorySelector] = useState(false);
@@ -71,6 +74,15 @@ function TourContent() {
   const [dynamicLandmark, setDynamicLandmark] = useState<Landmark | null>(null);
   const [discoverLoading, setDiscoverLoading] = useState(false);
 
+  // Audio guide mode
+  const [audioGuideEnabled, setAudioGuideEnabled] = useState(false);
+  const lastAutoTriggeredRef = useRef<string | null>(null);
+
+  // Walking tour
+  const [showWalkingTour, setShowWalkingTour] = useState(false);
+  const [walkingTourLandmarks, setWalkingTourLandmarks] = useState<NearbyLandmarkWithDistance[]>([]);
+  const [visitedLandmarks, setVisitedLandmarks] = useState<Set<string>>(new Set());
+
   // Voice input
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -79,6 +91,17 @@ function TourContent() {
     coordsRef.current = { lat, lng };
     const nearby = findNearbyLandmark(lat, lng);
     setNearbyLandmark(nearby);
+    // Update walking tour data
+    setWalkingTourLandmarks(findLandmarksWithinRadius(lat, lng, 3000));
+    // Track visited landmarks
+    if (nearby) {
+      setVisitedLandmarks((prev) => {
+        if (prev.has(nearby.key)) return prev;
+        const next = new Set(prev);
+        next.add(nearby.key);
+        return next;
+      });
+    }
   }, []);
 
   const [initialQuerySent, setInitialQuerySent] = useState(false);
@@ -206,6 +229,23 @@ function TourContent() {
     [messages, destination, langCode, speakText]
   );
 
+  // Audio guide — auto-trigger commentary when entering a new landmark radius
+  const sendToAPIRef = useRef(sendToAPI);
+  sendToAPIRef.current = sendToAPI;
+  const isLoadingRef = useRef(isLoading);
+  isLoadingRef.current = isLoading;
+
+  useEffect(() => {
+    if (!audioGuideEnabled || !nearbyLandmark) return;
+    if (nearbyLandmark.key === lastAutoTriggeredRef.current) return;
+    if (isLoadingRef.current) return;
+
+    lastAutoTriggeredRef.current = nearbyLandmark.key;
+    sendToAPIRef.current(
+      `Tell me about ${nearbyLandmark.landmark.name}. What am I looking at and what's the history?`
+    );
+  }, [audioGuideEnabled, nearbyLandmark]);
+
   // If the URL provides explicit coordinates (for testing), apply them once and
   // optionally send an automatic "What am I looking at?" query so the user
   // doesn’t need to tap or type anything.
@@ -277,14 +317,15 @@ function TourContent() {
   }, [isListening, langCode, sendToAPI]);
 
   // Heyday handler
-  const handleHeyday = useCallback(async () => {
+  const handleHeyday = useCallback(async (era?: string) => {
     if (!lastCaptureRef.current || heyDayLoading) return;
     setHeyDayLoading(true);
+    setShowEraPicker(false);
     try {
       const response = await fetch("/api/heyday", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: lastCaptureRef.current }),
+        body: JSON.stringify({ imageBase64: lastCaptureRef.current, era }),
       });
       const data = await response.json();
       if (data.imageUrl) {
@@ -305,11 +346,10 @@ function TourContent() {
     async (chapter: StoryChapter) => {
       if (storyLoading) return;
 
-      // Check sessionStorage cache
-      const cacheKey = `story_${chapter.id}`;
-      const cached = sessionStorage.getItem(cacheKey);
+      // Check IndexedDB cache
+      const cached = await getCachedStory(chapter.id);
       if (cached) {
-        setStoryData(JSON.parse(cached));
+        setStoryData(cached);
         setShowStorySelector(false);
         return;
       }
@@ -334,7 +374,7 @@ function TourContent() {
             narration: data.narration,
             images: data.images,
           };
-          sessionStorage.setItem(cacheKey, JSON.stringify(story));
+          cacheStory(chapter.id, story);
           setStoryData(story);
         } else {
           console.error("[TourPage] Story returned incomplete data:", data);
@@ -365,27 +405,80 @@ function TourContent() {
           {/* Top bar */}
           <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between p-4">
             <LocationBadge onLocationUpdate={handleLocationUpdate} />
-            <a
-              href="/"
-              className="rounded-full bg-stone-800/80 px-3 py-1 text-xs text-stone-300 backdrop-blur-sm"
-            >
-              Exit
-            </a>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAudioGuideEnabled((prev) => !prev);
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm transition-colors ${
+                  audioGuideEnabled
+                    ? "bg-green-500/90 text-white"
+                    : "bg-stone-800/80 text-stone-300"
+                }`}
+              >
+                {audioGuideEnabled ? "Guide ON" : "Guide"}
+              </button>
+              {walkingTourLandmarks.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowWalkingTour(true);
+                  }}
+                  className="rounded-full bg-stone-800/80 px-3 py-1 text-xs font-semibold text-stone-300 backdrop-blur-sm"
+                >
+                  Tour ({walkingTourLandmarks.length})
+                </button>
+              )}
+              <a
+                href="/"
+                className="rounded-full bg-stone-800/80 px-3 py-1 text-xs text-stone-300 backdrop-blur-sm"
+              >
+                Exit
+              </a>
+            </div>
           </div>
 
           {/* Bottom overlay buttons */}
           <div className="absolute inset-x-0 bottom-4 z-20 flex items-center justify-center gap-3 px-4">
             {lastCaptureRef.current && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleHeyday();
-                }}
-                disabled={heyDayLoading}
-                className="rounded-full bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm disabled:opacity-50"
-              >
-                {heyDayLoading ? "Generating..." : "Show in its Heyday"}
-              </button>
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowEraPicker((prev) => !prev);
+                  }}
+                  disabled={heyDayLoading}
+                  className="rounded-full bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm disabled:opacity-50"
+                >
+                  {heyDayLoading ? "Generating..." : "Show in its Heyday"}
+                </button>
+                {showEraPicker && !heyDayLoading && (
+                  <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-xl bg-stone-900/95 p-2 backdrop-blur-md shadow-xl">
+                    <div className="flex flex-col gap-1 whitespace-nowrap">
+                      {[
+                        { label: "Best era (auto)", value: undefined },
+                        { label: "Ancient (~100 AD)", value: "Ancient era, around 100 AD" },
+                        { label: "Medieval (~1200)", value: "Medieval era, around 1200 AD" },
+                        { label: "Renaissance (~1500)", value: "Renaissance era, around 1500 AD" },
+                        { label: "Victorian (~1880)", value: "Victorian era, around 1880" },
+                        { label: "Mid-century (~1950)", value: "Mid-20th century, around 1950" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.label}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleHeyday(opt.value);
+                          }}
+                          className="rounded-lg px-4 py-2 text-left text-xs text-stone-200 hover:bg-amber-500/20 transition-colors"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {(nearbyLandmark || detectedPlace) && (
@@ -496,6 +589,16 @@ function TourContent() {
             setHeyDayImage(null);
             setHeyDayCaption(null);
           }}
+        />
+      )}
+
+      {/* Walking Tour */}
+      {showWalkingTour && (
+        <WalkingTour
+          landmarks={walkingTourLandmarks}
+          visitedKeys={visitedLandmarks}
+          currentLandmarkKey={nearbyLandmark?.key || null}
+          onClose={() => setShowWalkingTour(false)}
         />
       )}
 

@@ -7,7 +7,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
-    const { imageBase64 } = await req.json();
+    const { imageBase64, era } = await req.json();
 
     if (!imageBase64) {
       return Response.json({ error: "No image provided" }, { status: 400 });
@@ -52,7 +52,9 @@ Return your response as JSON with exactly this format (no markdown, no code fenc
             },
             {
               type: "text",
-              text: "Analyze this photo and write a DALL-E 3 prompt showing the most interesting historical version of this location. Use your intuition — it could be ancient history, what stood here before, or the same spot decades ago.",
+              text: era
+                ? `Analyze this photo and write a DALL-E 3 prompt showing this location as it would have looked during: ${era}. Focus on historically accurate details for that specific time period.`
+                : "Analyze this photo and write a DALL-E 3 prompt showing the most interesting historical version of this location. Use your intuition — it could be ancient history, what stood here before, or the same spot decades ago.",
             },
           ],
         },

@@ -460,6 +460,64 @@ export function findNearbyLandmark(
   return null;
 }
 
+export interface NearbyLandmarkWithDistance {
+  key: string;
+  landmark: Landmark;
+  distanceMeters: number;
+  bearing: number;
+}
+
+export function findLandmarksWithinRadius(
+  lat: number,
+  lng: number,
+  maxDistanceMeters: number = 2000
+): NearbyLandmarkWithDistance[] {
+  const results: NearbyLandmarkWithDistance[] = [];
+  for (const [key, landmark] of Object.entries(LANDMARK_STORIES)) {
+    const distance = getDistanceMeters(
+      lat,
+      lng,
+      landmark.coords.lat,
+      landmark.coords.lng
+    );
+    if (distance <= maxDistanceMeters) {
+      results.push({
+        key,
+        landmark,
+        distanceMeters: Math.round(distance),
+        bearing: getBearing(lat, lng, landmark.coords.lat, landmark.coords.lng),
+      });
+    }
+  }
+  return results.sort((a, b) => a.distanceMeters - b.distanceMeters);
+}
+
+function getBearing(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const lat1Rad = (lat1 * Math.PI) / 180;
+  const lat2Rad = (lat2 * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2Rad);
+  const x =
+    Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+    Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+export function bearingToDirection(bearing: number): string {
+  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return dirs[Math.round(bearing / 45) % 8];
+}
+
+export function formatDistance(meters: number): string {
+  if (meters < 1000) return `${meters}m`;
+  return `${(meters / 1000).toFixed(1)}km`;
+}
+
 function getDistanceMeters(
   lat1: number,
   lng1: number,

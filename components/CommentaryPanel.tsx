@@ -149,6 +149,25 @@ export default function CommentaryPanel({
             </div>
           </div>
         )}
+
+        {/* Quick follow-up buttons */}
+        {!isLoading && !streamingText && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {[
+              "Tell me something surprising",
+              "What should I look for here?",
+              "Any hidden details nearby?",
+            ].map((q) => (
+              <button
+                key={q}
+                onClick={() => onSendMessage(q)}
+                className="rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-500/25"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Input bar */}

@@ -162,6 +162,34 @@ export default function StoryPlayer({
     setIsPaused(!isPaused);
   };
 
+  const handleShare = async () => {
+    const shareData: ShareData = {
+      title: `${title} — ${landmarkName}`,
+      text: narration.slice(0, 200) + "...",
+    };
+    // Attach first image as a file if supported
+    if (images[0] && navigator.canShare) {
+      try {
+        const res = await fetch(images[0]);
+        const blob = await res.blob();
+        const file = new File([blob], "story-scene.png", { type: blob.type });
+        const withFile = { ...shareData, files: [file] };
+        if (navigator.canShare(withFile)) {
+          shareData.files = [file];
+        }
+      } catch {
+        // Skip image attachment on failure
+      }
+    }
+    if (navigator.share) {
+      navigator.share(shareData).catch(() => {});
+    } else {
+      await navigator.clipboard.writeText(
+        `${shareData.title}\n\n${narration.slice(0, 300)}...`
+      );
+    }
+  };
+
   const handleClose = () => {
     stopBrowserTTS();
     if (audioRef.current) {
@@ -249,7 +277,7 @@ export default function StoryPlayer({
       </div>
 
       {/* Controls */}
-      <div className="absolute inset-x-0 bottom-8 z-10 flex items-center justify-center gap-6">
+      <div className="absolute inset-x-0 bottom-8 z-10 flex items-center justify-center gap-4">
         <button
           onClick={togglePause}
           className="rounded-full bg-white/20 px-6 py-2 text-white backdrop-blur-sm"
@@ -266,6 +294,13 @@ export default function StoryPlayer({
             />
           ))}
         </div>
+        <button
+          onClick={handleShare}
+          className="rounded-full bg-white/20 px-4 py-2 text-white backdrop-blur-sm"
+          title="Share this story"
+        >
+          Share
+        </button>
       </div>
 
       <style jsx>{`
