@@ -103,10 +103,10 @@ export default function StoryPlayer({
         const blobUrl = URL.createObjectURL(blob);
 
         const audio = new Audio(blobUrl);
-        audio.onended = () => setAudioReady(false);
         audio.onerror = () => {
           console.error("[StoryPlayer] Audio playback error");
-          setAudioReady(false);
+          speakWithBrowserTTS(narration, langCode);
+          setAudioReady(true);
         };
 
         audioRef.current = audio;
@@ -118,6 +118,7 @@ export default function StoryPlayer({
         if (e instanceof DOMException && e.name === "AbortError") return;
         console.error("[StoryPlayer] TTS error, falling back to browser TTS:", e);
         speakWithBrowserTTS(narration, langCode);
+        setAudioReady(true);
       }
     };
 
@@ -199,7 +200,7 @@ export default function StoryPlayer({
       {/* Close button */}
       <button
         onClick={handleClose}
-        className="absolute right-4 top-4 z-10 rounded-full bg-black/60 px-3 py-1 text-sm text-white backdrop-blur-sm"
+        className="absolute right-4 top-4 z-10 rounded-full bg-black/40 px-3 py-1 text-sm text-white backdrop-blur-sm"
       >
         Close
       </button>
@@ -207,7 +208,7 @@ export default function StoryPlayer({
       {/* Audio loading indicator */}
       {!audioReady && (
         <div className="absolute left-1/2 top-16 z-10 -translate-x-1/2">
-          <div className="flex items-center gap-2 rounded-full bg-black/60 px-4 py-2 text-xs text-white/70 backdrop-blur-sm">
+          <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-xs text-white/70 backdrop-blur-sm">
             <div className="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
             Generating audio...
           </div>
@@ -215,7 +216,7 @@ export default function StoryPlayer({
       )}
 
       {/* Scrollable Narration Text */}
-      <div className="absolute inset-x-4 bottom-24 z-10 max-h-48 overflow-y-auto rounded-lg bg-black/70 px-4 py-3 backdrop-blur-sm">
+      <div className="absolute inset-x-4 bottom-24 z-10 max-h-48 overflow-y-auto rounded-lg bg-black/40 px-4 py-3 backdrop-blur-sm">
         <div className="space-y-2">
           {sentences.map((sentence, idx) => {
             const sectionStart = currentIndex * sentencesPerImage;
@@ -226,8 +227,8 @@ export default function StoryPlayer({
                 key={idx}
                 className={`text-sm leading-relaxed transition-colors ${
                   isCurrent
-                    ? "rounded bg-amber-500/30 px-2 py-1 font-semibold text-amber-100"
-                    : "text-white/80"
+                    ? "rounded bg-amber-500/20 px-2 py-1 font-semibold text-amber-100"
+                    : "text-white/70"
                 }`}
               >
                 {sentence}

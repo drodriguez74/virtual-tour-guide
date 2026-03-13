@@ -384,6 +384,8 @@ function TourContent() {
                   e.stopPropagation();
                   if (nearbyLandmark) {
                     setShowStorySelector(true);
+                  } else if (dynamicLandmark) {
+                    setShowStorySelector(true);
                   } else if (detectedPlace && !discoverLoading) {
                     setDiscoverLoading(true);
                     try {
@@ -505,7 +507,12 @@ function TourContent() {
           images={storyData.images}
           langCode={langCode}
           destination={destination}
-          onClose={() => setStoryData(null)}
+          onClose={() => {
+            setStoryData(null);
+            if (nearbyLandmark || dynamicLandmark) {
+              setShowStorySelector(true);
+            }
+          }}
         />
       )}
     </div>
