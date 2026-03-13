@@ -12,6 +12,16 @@ import StoryPlayer from "@/components/StoryPlayer";
 import { findNearbyLandmark, Landmark, StoryChapter } from "@/lib/landmarks";
 import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/`(.+?)`/g, "$1");
+}
+
 function TourContent() {
   const searchParams = useSearchParams();
   const destination = searchParams.get("destination") || "italy";
@@ -172,7 +182,7 @@ function TourContent() {
           { role: "assistant", content: fullText },
         ]);
         setStreamingText("");
-        speakText(fullText);
+        speakText(stripMarkdown(fullText));
 
         // Extract place context for dynamic story discovery
         if (fullText.length > 50) {

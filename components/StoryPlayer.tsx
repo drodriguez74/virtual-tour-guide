@@ -3,6 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/#{1,6}\s+/g, "")
+    .replace(/`(.+?)`/g, "$1");
+}
+
 interface StoryPlayerProps {
   title: string;
   landmarkName: string;
@@ -90,7 +100,7 @@ export default function StoryPlayer({
         const res = await fetch("/api/tts-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: narration, destination, langCode }),
+          body: JSON.stringify({ text: stripMarkdown(narration), destination, langCode }),
           signal: controller.signal,
         });
 
@@ -105,7 +115,7 @@ export default function StoryPlayer({
         const audio = new Audio(blobUrl);
         audio.onerror = () => {
           console.error("[StoryPlayer] Audio playback error");
-          speakWithBrowserTTS(narration, langCode);
+          speakWithBrowserTTS(stripMarkdown(narration), langCode);
           setAudioReady(true);
         };
 
@@ -117,7 +127,7 @@ export default function StoryPlayer({
       } catch (e: unknown) {
         if (e instanceof DOMException && e.name === "AbortError") return;
         console.error("[StoryPlayer] TTS error, falling back to browser TTS:", e);
-        speakWithBrowserTTS(narration, langCode);
+        speakWithBrowserTTS(stripMarkdown(narration), langCode);
         setAudioReady(true);
       }
     };

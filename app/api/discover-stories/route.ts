@@ -45,7 +45,9 @@ Return ONLY valid JSON, no markdown.`,
       temperature: 0.7,
     });
 
-    const text = response.choices[0]?.message?.content || "";
+    const raw = response.choices[0]?.message?.content || "";
+    // Strip markdown fences GPT-4o occasionally wraps around JSON
+    const text = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     let parsed: {
       placeName: string;
       stories: {
@@ -59,6 +61,7 @@ Return ONLY valid JSON, no markdown.`,
     try {
       parsed = JSON.parse(text);
     } catch {
+      console.error("[discover-stories] JSON parse failed. Raw response:", raw);
       return Response.json(
         { error: "Failed to parse story suggestions" },
         { status: 500 }
