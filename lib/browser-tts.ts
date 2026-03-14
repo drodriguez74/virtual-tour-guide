@@ -13,7 +13,7 @@ export function stopBrowserTTS(): void {
 function toBcp47(langCode: string): string {
   const map: Record<string, string> = {
     en: "en-US",
-    es: "es-419",
+    es: "es-US",
     fr: "fr-FR",
     de: "de-DE",
     it: "it-IT",
