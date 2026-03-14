@@ -5,11 +5,22 @@ export interface StoryChapter {
   prompt: string;
 }
 
+export interface HeydayMeta {
+  target_era: string;
+  architectural_style: string;
+  materials: string;
+  scene_tokens: string[];
+  crowd_description: string;
+  key_features: string[];
+  color_palette: string;
+}
+
 export interface Landmark {
   name: string;
   coords: { lat: number; lng: number };
   radiusMeters: number;
   stories: StoryChapter[];
+  heyday?: HeydayMeta;
 }
 
 export const LANDMARK_STORIES: Record<string, Landmark> = {
@@ -17,6 +28,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "The Colosseum",
     coords: { lat: 41.8902, lng: 12.4922 },
     radiusMeters: 200,
+    heyday: {
+      target_era: "80 AD, inaugural games under Emperor Titus",
+      architectural_style: "Imperial Roman amphitheatre",
+      materials: "Travertine limestone, Roman concrete (opus caementicium), marble cladding, bronze clamps",
+      scene_tokens: ["velarium awning stretched across top", "marble statues in every arch niche", "wooden arena floor covered in sand", "elevator lifts for animals"],
+      crowd_description: "50,000 spectators in togas and tunics arranged by social class — senators in white-bordered togas at the front, plebeians in undyed wool higher up, women and slaves at the very top",
+      key_features: ["complete four-storey outer wall with all 80 arches intact", "76 numbered entrance arches", "Doric/Ionic/Corinthian column orders on successive levels", "gilded bronze shields between upper arches"],
+      color_palette: "warm cream travertine, white marble statues, red and purple velarium awnings, bronze and gold accents",
+    },
     stories: [
       {
         id: "construction",
@@ -48,6 +68,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "The Roman Forum",
     coords: { lat: 41.8925, lng: 12.4853 },
     radiusMeters: 300,
+    heyday: {
+      target_era: "100 AD, height of the Roman Empire under Trajan",
+      architectural_style: "Roman civic forum with temples, basilicas, and triumphal arches",
+      materials: "White Carrara marble, travertine, gilded bronze, Roman concrete",
+      scene_tokens: ["Temple of Saturn with intact columns", "Basilica Julia bustling with courts", "Rostra speaking platform draped in ship prows", "Sacred Way paved in basalt"],
+      crowd_description: "Senators in white togas with purple borders, merchants with goods, lawyers arguing cases, priests performing rituals, slaves carrying litters",
+      key_features: ["all temples fully roofed with terracotta and marble", "triumphal arches with bronze quadrigae on top", "gilded statues on every column and pediment", "the Curia Julia senate house with bronze doors"],
+      color_palette: "white marble, gilded bronze, terracotta red roof tiles, purple senatorial stripes, green patina on older bronze",
+    },
     stories: [
       {
         id: "daily_life",
@@ -68,6 +97,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Palatine Hill",
     coords: { lat: 41.8892, lng: 12.4875 },
     radiusMeters: 250,
+    heyday: {
+      target_era: "90 AD, Emperor Domitian's Palatine Palace at its peak",
+      architectural_style: "Imperial Roman palace complex (Domus Augustana and Domus Flavia)",
+      materials: "Pentelic and Carrara marble, polychrome marble floors, gilded stucco, Roman concrete vaults",
+      scene_tokens: ["Domus Flavia grand audience hall", "sunken peristyle garden with fountains", "Stadium of Domitian", "panoramic terrace overlooking Circus Maximus"],
+      crowd_description: "Imperial court — Praetorian guards in plumed helmets, senators awaiting audience, slaves tending elaborate gardens, messengers arriving from provinces",
+      key_features: ["multi-storey palace covering entire hilltop", "elaborate fountain courts", "heated baths with hypocaust system", "private viewing box over Circus Maximus"],
+      color_palette: "polychrome marble floors (red porphyry, green serpentine, yellow giallo antico), white columns, gold leaf ceilings, lush garden greens",
+    },
     stories: [
       {
         id: "romulus",
@@ -87,6 +125,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Pompeii",
     coords: { lat: 40.751, lng: 14.4989 },
     radiusMeters: 500,
+    heyday: {
+      target_era: "79 AD, the morning before the eruption of Vesuvius",
+      architectural_style: "Roman provincial town — mixed Samnite and Roman architecture",
+      materials: "Tufa stone, opus reticulatum, painted stucco (fresco), terracotta roof tiles",
+      scene_tokens: ["thermopolia (fast-food counters) with steaming pots", "frescoed walls in vivid Pompeian red", "stepping stones across streets", "lead water pipes feeding fountains"],
+      crowd_description: "Busy market-day crowds — merchants selling bread and fish, toga-clad citizens, slaves carrying amphorae, children playing in the streets, a gladiator troupe advertising the next games",
+      key_features: ["complete two-storey houses with intact upper floors", "streets with deep chariot ruts", "public fountains at every intersection", "Mount Vesuvius green and dormant in the background"],
+      color_palette: "Pompeian red frescoes, ochre and black wall panels, terracotta roofs, grey basalt streets, green Vesuvius slopes",
+    },
     stories: [
       {
         id: "eruption",
@@ -108,6 +155,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Vatican Museums & Sistine Chapel",
     coords: { lat: 41.9065, lng: 12.4536 },
     radiusMeters: 300,
+    heyday: {
+      target_era: "1512, the unveiling of Michelangelo's Sistine Chapel ceiling",
+      architectural_style: "Renaissance papal palace and chapel",
+      materials: "Brick walls with marble cladding, fresco on wet plaster, gilded wood, Cosmati mosaic floors",
+      scene_tokens: ["Sistine Chapel with freshly completed ceiling", "Raphael painting the Stanze rooms next door", "Swiss Guards in early uniforms", "Bramante's spiral staircase newly built"],
+      crowd_description: "Pope Julius II and his cardinals in red robes, Renaissance artists and apprentices, pilgrims from across Europe in period clothing",
+      key_features: ["Sistine ceiling with vivid original colors (before candle soot)", "marble screen dividing chapel", "papal throne under a canopy", "windows flooding the chapel with light"],
+      color_palette: "vivid fresco blues (lapis lazuli), warm flesh tones, cardinal red, papal white and gold, Cosmati geometric marble",
+    },
     stories: [
       {
         id: "sistine_ceiling",
@@ -133,6 +189,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "The Pantheon",
     coords: { lat: 41.8986, lng: 12.4769 },
     radiusMeters: 150,
+    heyday: {
+      target_era: "125 AD, newly completed under Emperor Hadrian",
+      architectural_style: "Roman temple — classical portico with revolutionary domed rotunda",
+      materials: "Granite columns from Egypt, white Pentelic marble portico, Roman concrete dome, gilded bronze roof tiles",
+      scene_tokens: ["gilded bronze roof tiles gleaming in sunlight", "bronze doors (still original today)", "polychrome marble interior", "light beam from oculus moving across floor"],
+      crowd_description: "Roman citizens and priests performing rituals to all gods, incense smoke drifting through the oculus, visitors marvelling at the dome",
+      key_features: ["original gilded bronze roof tiles (later stripped by Barberini popes)", "16 monolithic granite columns each 39 feet tall", "coffered concrete dome — largest unreinforced concrete dome ever", "9-metre open oculus at apex"],
+      color_palette: "gilded bronze roof, grey Egyptian granite, white marble portico, polychrome interior marble (purple porphyry, yellow giallo antico), blue sky through oculus",
+    },
     stories: [
       {
         id: "pantheon_dome",
@@ -152,6 +217,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Trevi Fountain",
     coords: { lat: 41.9009, lng: 12.4833 },
     radiusMeters: 100,
+    heyday: {
+      target_era: "1762, freshly completed by Nicola Salvi and Giuseppe Pannini",
+      architectural_style: "Late Baroque theatrical fountain against palace facade",
+      materials: "Travertine stone, Carrara marble sculptures, water from the ancient Aqua Virgo aqueduct",
+      scene_tokens: ["Neptune riding a shell chariot pulled by seahorses", "allegorical statues of Abundance and Health", "water cascading over artificial rocks", "palazzo facade freshly carved"],
+      crowd_description: "18th-century Romans in tricorn hats and powdered wigs, women drawing water with clay jugs, Grand Tour visitors sketching the new fountain",
+      key_features: ["pristine white travertine facade (not yet darkened by pollution)", "Neptune statue in centre niche", "two tritons guiding seahorses — one calm, one wild", "bas-relief of the virgin showing soldiers the spring"],
+      color_palette: "brilliant white travertine and marble, turquoise pool water, warm Roman ochre buildings surrounding the piazza",
+    },
     stories: [
       {
         id: "trevi_aqueduct",
@@ -173,6 +247,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Florence Cathedral & Brunelleschi's Dome",
     coords: { lat: 43.7731, lng: 11.2560 },
     radiusMeters: 200,
+    heyday: {
+      target_era: "1436, consecration of the completed dome by Pope Eugene IV",
+      architectural_style: "Italian Gothic cathedral with Renaissance dome",
+      materials: "White Carrara marble, green Prato marble, pink Maremma marble, terracotta herringbone bricks for the dome",
+      scene_tokens: ["newly completed dome towering over Florence", "Giotto's campanile", "Baptistery with Ghiberti's bronze doors", "construction scaffolding being removed from lantern"],
+      crowd_description: "Renaissance Florentines in colourful doublets and hose, guild members in ceremonial dress, clergy in procession, Brunelleschi himself overseeing final details",
+      key_features: ["pristine polychrome marble facade (the current facade is 19th century — in 1436 the facade was still unfinished bare stone)", "completed dome with fresh terracotta tiles", "golden orb and cross being placed atop lantern", "Baptistery doors gleaming with fresh gilding"],
+      color_palette: "white/green/pink marble stripes, terracotta dome tiles, gold Baptistery doors, warm Florentine ochre surroundings",
+    },
     stories: [
       {
         id: "brunelleschi_dome",
@@ -192,6 +275,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "The Uffizi Gallery",
     coords: { lat: 43.7687, lng: 11.2553 },
     radiusMeters: 150,
+    heyday: {
+      target_era: "1581, Grand Duke Francesco I converts the top floor into his private gallery",
+      architectural_style: "Mannerist long gallery by Giorgio Vasari",
+      materials: "Pietra serena grey sandstone, white plaster, marble, iron-framed windows",
+      scene_tokens: ["Vasari Corridor connecting to Palazzo Vecchio", "Tribune room with octagonal dome", "classical sculptures lining the corridors", "Arno river visible through colonnade"],
+      crowd_description: "Medici courtiers in Renaissance silks, visiting dignitaries marvelling at Botticelli and Leonardo, artists copying masterpieces, servants lighting oil lamps",
+      key_features: ["U-shaped building framing the Arno view", "open loggia on ground floor", "Tribune room with mother-of-pearl dome", "Vasari Corridor above Ponte Vecchio"],
+      color_palette: "grey pietra serena stone, white plaster, warm terracotta roofs, dark Renaissance paintings in gold frames, blue Arno river",
+    },
     stories: [
       {
         id: "medici_collection",
@@ -211,6 +303,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Galleria dell'Accademia — David",
     coords: { lat: 43.7768, lng: 11.2588 },
     radiusMeters: 100,
+    heyday: {
+      target_era: "1504, David newly installed in Piazza della Signoria",
+      architectural_style: "Renaissance civic sculpture in an open piazza",
+      materials: "White Carrara marble, freshly carved and polished",
+      scene_tokens: ["David standing before Palazzo Vecchio entrance", "marble gleaming white (not yet weathered grey)", "wooden rollers used to move the statue still nearby", "garland decorations from the unveiling"],
+      crowd_description: "Florentine citizens in Renaissance dress celebrating the unveiling, artists including Leonardo and Botticelli debating the placement, Michelangelo at age 29 present",
+      key_features: ["5.17-metre statue in pristine white marble", "original outdoor placement at Palazzo Vecchio", "intense gaze directed toward Rome", "oversized right hand gripping the sling"],
+      color_palette: "brilliant white Carrara marble, warm golden Palazzo Vecchio stone, blue Florentine sky, colourful Renaissance clothing",
+    },
     stories: [
       {
         id: "david_creation",
@@ -230,6 +331,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Ponte Vecchio",
     coords: { lat: 43.7680, lng: 11.2532 },
     radiusMeters: 100,
+    heyday: {
+      target_era: "1565, Vasari Corridor just completed above the shops",
+      architectural_style: "Medieval segmental arch bridge with overhanging shops",
+      materials: "Stone arches, wooden shop structures with terracotta tile roofs, Vasari Corridor in plastered masonry",
+      scene_tokens: ["butcher and tanner shops (before goldsmiths replaced them)", "meat hanging in open-air stalls", "Vasari Corridor newly built above", "small boats on the Arno below"],
+      crowd_description: "Butchers in bloody aprons, tanners carrying hides, housewives shopping for meat, Cosimo I de' Medici passing unseen in the corridor above",
+      key_features: ["three stone arches spanning the Arno", "shops overhanging the river on wooden brackets", "newly built Vasari Corridor running above the east side", "open gap in the middle for river views"],
+      color_palette: "warm golden stone, weathered wood shop fronts, terracotta roofs, muddy Arno green-brown, raw meat reds",
+    },
     stories: [
       {
         id: "ponte_vecchio_history",
@@ -251,6 +361,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "St. Mark's Basilica & Piazza",
     coords: { lat: 45.4345, lng: 12.3397 },
     radiusMeters: 200,
+    heyday: {
+      target_era: "1400, height of the Venetian Republic's maritime empire",
+      architectural_style: "Italo-Byzantine basilica with Gothic and Romanesque elements",
+      materials: "Brick structure clad in marble looted from Constantinople, 85,000 sq ft of gold glass mosaics, lead roof domes",
+      scene_tokens: ["four bronze horses of St. Mark on the facade (looted from Constantinople)", "gold mosaics gleaming in sunlight", "Piazza filled with merchants from across the Mediterranean", "Doge's ceremonial procession"],
+      crowd_description: "Venetian merchants in fur-trimmed robes, Byzantine traders in silk, sailors arriving from the East, the Doge in ceremonial corno hat leading a procession",
+      key_features: ["five domes covered in lead", "facade covered in marble columns and carvings looted from across the Eastern Mediterranean", "bronze horses (originals, not replicas) on the loggia", "Piazza without the current Napoleon Wing (open to the water)"],
+      color_palette: "gold mosaic shimmer, white and coloured marble, lead-grey domes, red Venetian gonfalons, deep blue lagoon water",
+    },
     stories: [
       {
         id: "stolen_saint",
@@ -276,6 +395,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Rialto Bridge",
     coords: { lat: 45.4381, lng: 12.3360 },
     radiusMeters: 100,
+    heyday: {
+      target_era: "1591, the new stone bridge freshly completed by Antonio da Ponte",
+      architectural_style: "Renaissance single-span stone arch bridge with covered arcade",
+      materials: "Istrian stone (white limestone from Istria), marble balustrades, stone shop stalls",
+      scene_tokens: ["brand new white Istrian stone gleaming", "merchant stalls opening for the first time", "gondolas passing underneath the single bold arch", "Grand Canal bustling with trade galleys"],
+      crowd_description: "Venetian merchants in black cloaks and caps inspecting the new shops, spice traders from the Levant, money-changers at their banchi (benches), gondoliers ferrying goods",
+      key_features: ["pristine white single stone arch spanning 28 metres", "24 shops in two rows along the bridge", "three walkways — central promenade and two along the shops", "stone reliefs of the Annunciation and St. Mark"],
+      color_palette: "brilliant white Istrian stone, deep green canal water, colourful merchant wares, dark Venetian cloaks, gilded shop signs",
+    },
     stories: [
       {
         id: "rialto_history",
@@ -297,6 +425,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Leaning Tower & Cathedral of Pisa",
     coords: { lat: 43.7230, lng: 10.3966 },
     radiusMeters: 150,
+    heyday: {
+      target_era: "1372, tower finally completed after 200 years of construction",
+      architectural_style: "Romanesque-Pisan — blind arcading and open loggias",
+      materials: "White Carrara marble, grey limestone, lead roof on bell chamber",
+      scene_tokens: ["tower with a noticeable lean but less than today (~1.6° vs 3.97°)", "all seven bells newly installed in top chamber", "Cathedral with original bronze doors", "Baptistery scaffolding just removed"],
+      crowd_description: "Medieval Pisans in wool tunics celebrating completion, Pisan navy sailors, clergy ringing the new bells, pilgrims visiting the Campo dei Miracoli",
+      key_features: ["eight storeys of open arcaded galleries in white marble", "lean already visible but modest", "all 207 columns intact and pristine", "no protective barriers or tourist infrastructure"],
+      color_palette: "brilliant white Carrara marble, soft grey limestone accents, green Campo lawn, blue Tuscan sky, lead-grey bell chamber roof",
+    },
     stories: [
       {
         id: "pisa_lean",
@@ -324,6 +461,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Duomo di Milano",
     coords: { lat: 45.4642, lng: 9.1900 },
     radiusMeters: 200,
+    heyday: {
+      target_era: "1813, facade completed under Napoleon's orders for his coronation as King of Italy",
+      architectural_style: "Flamboyant Gothic with Neoclassical facade elements",
+      materials: "Candoglia marble (pink-white, quarried from Lake Maggiore), lead roofing, stained glass, bronze doors",
+      scene_tokens: ["newly completed Neo-Gothic facade gleaming white", "Napoleon's imperial banners on the piazza", "Madonnina golden statue freshly installed on highest spire (1774)", "135 spires complete"],
+      crowd_description: "Milanese citizens in Napoleonic-era dress (Empire waistline gowns, tailcoats, bicorne hats), French soldiers, clergy in procession for the coronation",
+      key_features: ["3,400 statues in pristine condition", "135 spires all complete", "massive bronze central door", "Madonnina gilded statue atop the highest spire at 108 metres"],
+      color_palette: "pink-white Candoglia marble, gold Madonnina, dark bronze doors, Napoleonic tricolour flags, grey lead roofing",
+    },
     stories: [
       {
         id: "milan_cathedral",
@@ -345,6 +491,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Cinque Terre — Riomaggiore",
     coords: { lat: 44.1461, lng: 9.6563 },
     radiusMeters: 800,
+    heyday: {
+      target_era: "1900, fishing village before tourism, connected only by sea and mule paths",
+      architectural_style: "Ligurian vernacular — stacked tower houses built into cliffs",
+      materials: "Local stone walls, painted stucco in traditional colours, slate roofs, wooden fishing boats",
+      scene_tokens: ["colourful tower houses stacked on the cliff", "fishing boats pulled up on the rocky harbour", "terraced vineyards climbing the hillside", "narrow caruggi (alleyways) with laundry lines"],
+      crowd_description: "Fishermen mending nets in the harbour, women carrying baskets of anchovies, vineyard workers on terraces, children playing on the stone quay — no tourists",
+      key_features: ["harbour filled with traditional gozzi (fishing boats)", "terraced vineyards with dry-stone walls intact", "no roads or cars — only sea access and footpaths", "castle ruins on the hilltop"],
+      color_palette: "pastel pink, yellow, orange, and terracotta house facades, deep blue Ligurian sea, green vineyard terraces, grey slate roofs",
+    },
     stories: [
       {
         id: "cinque_terre_villages",
@@ -364,6 +519,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Amalfi Coast",
     coords: { lat: 40.6340, lng: 14.6027 },
     radiusMeters: 500,
+    heyday: {
+      target_era: "1050 AD, height of the Maritime Republic of Amalfi",
+      architectural_style: "Arab-Norman Mediterranean — arched loggias, bell towers, fortified harbour",
+      materials: "Local limestone, majolica tiles, tufa, painted stucco, cedar wood from trade with the Levant",
+      scene_tokens: ["Amalfi harbour crowded with merchant galleys", "Arab-Norman cathedral with original gold mosaics", "arsenale (shipyard) with ships under construction", "cliffside lemon terraces"],
+      crowd_description: "Amalfi sailors and merchants returning from Constantinople and North Africa, Arab traders with spices and silk, monks carrying manuscripts, port workers loading cargo",
+      key_features: ["large fortified harbour with stone quays full of trading ships", "cathedral with original Romanesque facade (before Baroque rebuilding)", "paper mills along the river valley", "watchtowers along the coast"],
+      color_palette: "white limestone buildings, turquoise Mediterranean, Moorish geometric tile patterns, lemon-tree green and yellow, wooden ship browns",
+    },
     stories: [
       {
         id: "amalfi_republic",
@@ -385,6 +549,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Herculaneum",
     coords: { lat: 40.8062, lng: 14.3478 },
     radiusMeters: 300,
+    heyday: {
+      target_era: "79 AD, a wealthy seaside resort town the morning before Vesuvius erupts",
+      architectural_style: "Roman seaside town — luxurious villas with mosaic floors and painted walls",
+      materials: "Opus reticulatum tufa, marble columns, fresco-painted plaster, mosaic tesserae, wooden beams and furniture",
+      scene_tokens: ["Villa of the Papyri with its long peristyle garden", "beachfront boat houses", "public baths with marble benches and mosaic floors", "wooden balconies on upper floors"],
+      crowd_description: "Wealthy Roman holidaymakers in fine linen, philosophers debating in the Villa of the Papyri library, slaves serving food in the thermopolium, fishermen launching boats from the beach",
+      key_features: ["intact two-storey houses with wooden upper floors", "Villa of the Papyri with its 250-metre garden colonnade", "public baths with original marble and mosaics", "beachfront with boat houses and wooden piers"],
+      color_palette: "rich Pompeian red and black frescoes, white marble, azure Mediterranean sea, green garden courtyards, warm wooden beams and furniture",
+    },
     stories: [
       {
         id: "herculaneum_preserved",
@@ -404,6 +577,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Valley of the Temples",
     coords: { lat: 37.2906, lng: 13.5883 },
     radiusMeters: 500,
+    heyday: {
+      target_era: "450 BC, Akragas as one of the richest Greek cities in the world",
+      architectural_style: "Ancient Greek Doric temples on a sacred ridge",
+      materials: "Local calcarenite limestone, painted stucco, terracotta roof tiles, marble sculpture details",
+      scene_tokens: ["Temple of Olympian Zeus under construction with giant Telamon figures", "Temple of Concordia fully painted in bright colours", "sacred olive groves between temples", "processional road along the ridge"],
+      crowd_description: "Greek colonists in draped chitons and himations, priests leading sacrificial processions with oxen, athletes training for games, sculptors carving Telamones",
+      key_features: ["all temples fully roofed and brightly painted (not bare stone)", "Temple of Olympian Zeus — largest Doric temple ever attempted with 8-metre Telamon figures", "Temple of Concordia with intact pediment sculptures", "city walls with monumental gates"],
+      color_palette: "bright painted temples — red pediments, blue triglyphs, cream columns, warm golden calcarenite, green olive trees, deep blue Sicilian sky",
+    },
     stories: [
       {
         id: "agrigento_greek",
@@ -425,6 +607,15 @@ export const LANDMARK_STORIES: Record<string, Landmark> = {
     name: "Bellagio, Lake Como",
     coords: { lat: 45.9878, lng: 9.2573 },
     radiusMeters: 600,
+    heyday: {
+      target_era: "1880, Belle Époque Grand Tour era when European aristocracy flocked to Lake Como",
+      architectural_style: "Neoclassical lakeside villas set in romantic English-style gardens",
+      materials: "Plastered stone villas, wrought-iron balconies, terracotta roofs, manicured boxwood and cypress gardens",
+      scene_tokens: ["paddle steamers crossing the lake", "Villa Melzi gardens in full bloom", "Grand Hotel Villa Serbelloni with horse carriages", "silk merchants' boats at the waterfront"],
+      crowd_description: "European aristocrats in Victorian finery — women with parasols, men in top hats, Grand Tour artists with easels, servants carrying luggage from steamers",
+      key_features: ["promontory where the three branches of Lake Como meet", "Villa Serbelloni and Villa Melzi in pristine condition", "stepped cobblestone alleyways (salite)", "no cars — only boats and carriages"],
+      color_palette: "pastel villa facades (peach, cream, pale yellow), deep blue lake, lush green gardens, snow-capped Alps in background, white steam from paddle boats",
+    },
     stories: [
       {
         id: "como_villas",

@@ -1,26 +1,55 @@
 import OpenAI from "openai";
+import { LANDMARK_STORIES, HeydayMeta } from "@/lib/landmarks";
 
 // Vercel serverless config — extend timeout for GPT-4o + DALL-E pipeline
 export const maxDuration = 60; // seconds (requires Vercel Pro for >10s)
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+/** Build an enriched system prompt when we know which landmark this is */
+function buildMetadataPrompt(name: string, meta: HeydayMeta, era?: string): string {
+  return `You are an expert historian. The user is pointing their camera at **${name}**.
+
+You have exact historical metadata for this site:
+- Target era: ${era || meta.target_era}
+- Architectural style: ${meta.architectural_style}
+- Materials: ${meta.materials}
+- Key visual details: ${meta.scene_tokens.join("; ")}
+- Crowd/people: ${meta.crowd_description}
+- Key features to restore: ${meta.key_features.join("; ")}
+- Color palette: ${meta.color_palette}
+
+Your job: write a DALL-E 3 prompt that reconstructs THIS EXACT CAMERA ANGLE of ${name} as it looked in ${era || meta.target_era}. The photo shows the user's current viewpoint — match that framing precisely, but replace ruins/decay with the fully restored version using the materials, colors, crowds, and details above.
+
+Your prompt MUST:
+- Match the exact camera angle and framing from the photo
+- Use the specific materials, colors, and architectural details listed above
+- Include people/crowds as described
+- Restore all missing or damaged features listed in key features
+- Specify cinematic golden-hour lighting
+- Request hyper-realistic BBC documentary illustration style
+- Be max 300 words
+
+Return JSON (no markdown, no code fences):
+{"prompt": "<DALL-E prompt>", "place": "${name}", "year": "${era || meta.target_era}"}`;
+}
+
 export async function POST(req: Request) {
   try {
-    const { imageBase64, era } = await req.json();
+    const { imageBase64, era, landmarkKey } = await req.json();
 
     if (!imageBase64) {
       return Response.json({ error: "No image provided" }, { status: 400 });
     }
 
-    // Step 1: Use GPT-4o vision to analyze the camera image and craft
-    // a precise DALL-E prompt based on what's actually in the photo
-    const analysisResponse = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert historian with deep knowledge of architecture, urban development, and cultural history across all eras. Analyze the photo and write a detailed DALL-E 3 image generation prompt that shows the MOST INTERESTING historical version of this exact location.
+    // Look up metadata when we know which landmark this is
+    const landmark = landmarkKey ? LANDMARK_STORIES[landmarkKey] : null;
+    const meta = landmark?.heyday;
+
+    // Build system prompt — enriched with metadata when available, generic otherwise
+    const systemPrompt = meta
+      ? buildMetadataPrompt(landmark!.name, meta, era)
+      : `You are an expert historian with deep knowledge of architecture, urban development, and cultural history across all eras. Analyze the photo and write a detailed DALL-E 3 image generation prompt that shows the MOST INTERESTING historical version of this exact location.
 
 Use your intuition to pick the most compelling era:
 - For ANCIENT RUINS (e.g. Colosseum, Parthenon): show them fully restored in their prime — original materials, colors, decorations, bustling crowds in period clothing.
@@ -38,7 +67,27 @@ Your prompt MUST:
 - Request hyper-realistic BBC documentary illustration style
 
 Return your response as JSON with exactly this format (no markdown, no code fences):
-{"prompt": "<your DALL-E prompt, max 300 words>", "place": "<name of the place>", "year": "<year or era portrayed, e.g. 1920 or circa 300 BC>"}`,
+{"prompt": "<your DALL-E prompt, max 300 words>", "place": "<name of the place>", "year": "<year or era portrayed, e.g. 1920 or circa 300 BC>"}`;
+
+    const userText = meta
+      ? (era
+          ? `This is ${landmark!.name}. Show this exact camera angle as it looked during: ${era}. Use the historical details provided.`
+          : `This is ${landmark!.name}. Show this exact camera angle as it looked in ${meta.target_era}. Use the historical details provided.`)
+      : (era
+          ? `Analyze this photo and write a DALL-E 3 prompt showing this location as it would have looked during: ${era}. Focus on historically accurate details for that specific time period.`
+          : "Analyze this photo and write a DALL-E 3 prompt showing the most interesting historical version of this location. Use your intuition — it could be ancient history, what stood here before, or the same spot decades ago.");
+
+    // Step 1: Use GPT-4o vision to analyze the camera image and craft
+    // a precise DALL-E prompt based on what's actually in the photo.
+    // When landmark metadata is available, GPT-4o still sees the image
+    // to match the exact camera angle, but now has exact historical context
+    // instead of guessing.
+    const analysisResponse = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
         },
         {
           role: "user",
@@ -47,14 +96,12 @@ Return your response as JSON with exactly this format (no markdown, no code fenc
               type: "image_url",
               image_url: {
                 url: `data:image/jpeg;base64,${imageBase64}`,
-                detail: "high",
+                detail: meta ? "low" : "high",
               },
             },
             {
               type: "text",
-              text: era
-                ? `Analyze this photo and write a DALL-E 3 prompt showing this location as it would have looked during: ${era}. Focus on historically accurate details for that specific time period.`
-                : "Analyze this photo and write a DALL-E 3 prompt showing the most interesting historical version of this location. Use your intuition — it could be ancient history, what stood here before, or the same spot decades ago.",
+              text: userText,
             },
           ],
         },

@@ -13,6 +13,9 @@ import { findNearbyLandmark, findLandmarksWithinRadius, Landmark, StoryChapter, 
 import WalkingTour from "@/components/WalkingTour";
 import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
 import { getCachedStory, cacheStory } from "@/lib/story-cache";
+import { resizeBase64ForAPI } from "@/lib/image-utils";
+import { getCachedHeyday, cacheHeyday } from "@/lib/heyday-cache";
+import { trackRequest, estimateBytes, getUsageSummary } from "@/lib/bandwidth-tracker";
 
 function stripMarkdown(text: string): string {
   return text
@@ -78,6 +81,9 @@ function TourContent() {
   const [audioGuideEnabled, setAudioGuideEnabled] = useState(false);
   const lastAutoTriggeredRef = useRef<string | null>(null);
 
+  // Bandwidth tracking
+  const [bandwidthTotal, setBandwidthTotal] = useState("");
+
   // Walking tour
   const [showWalkingTour, setShowWalkingTour] = useState(false);
   const [walkingTourLandmarks, setWalkingTourLandmarks] = useState<NearbyLandmarkWithDistance[]>([]);
@@ -86,6 +92,15 @@ function TourContent() {
   // Voice input
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  // Refresh bandwidth display
+  const refreshBandwidth = useCallback(() => {
+    setBandwidthTotal(getUsageSummary().total);
+  }, []);
+
+  useEffect(() => {
+    refreshBandwidth();
+  }, [refreshBandwidth]);
 
   const handleLocationUpdate = useCallback((lat: number, lng: number) => {
     coordsRef.current = { lat, lng };
@@ -316,21 +331,56 @@ function TourContent() {
     setIsListening(true);
   }, [isListening, langCode, sendToAPI]);
 
-  // Heyday handler
+  // Heyday handler — with compression, caching, and bandwidth tracking
   const handleHeyday = useCallback(async (era?: string) => {
     if (!lastCaptureRef.current || heyDayLoading) return;
     setHeyDayLoading(true);
     setShowEraPicker(false);
+
+    const lmKey = nearbyLandmark?.key;
+
+    // Check cache first (only useful when we know the landmark)
+    if (lmKey) {
+      const cached = await getCachedHeyday(lmKey, era);
+      if (cached) {
+        setHeyDayImage(cached.imageDataUrl);
+        setHeyDayCaption(cached.caption);
+        setHeyDayLoading(false);
+        return;
+      }
+    }
+
     try {
+      // Compress image before upload
+      const compressed = await resizeBase64ForAPI(lastCaptureRef.current);
+      const body = JSON.stringify({
+        imageBase64: compressed,
+        era,
+        landmarkKey: lmKey,
+      });
+
+      // Track upload bandwidth
+      trackRequest(estimateBytes(body), 0);
+
       const response = await fetch("/api/heyday", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: lastCaptureRef.current, era }),
+        body,
       });
       const data = await response.json();
+
+      // Track download bandwidth
+      trackRequest(0, estimateBytes(JSON.stringify(data)));
+      refreshBandwidth();
+
       if (data.imageUrl) {
         setHeyDayImage(data.imageUrl);
         setHeyDayCaption(data.caption || null);
+
+        // Cache for known landmarks
+        if (lmKey) {
+          cacheHeyday(lmKey, data.imageUrl, data.caption || null, era);
+        }
       } else {
         console.error("[TourPage] Heyday returned no image:", data);
       }
@@ -339,7 +389,7 @@ function TourContent() {
     } finally {
       setHeyDayLoading(false);
     }
-  }, [heyDayLoading]);
+  }, [heyDayLoading, nearbyLandmark, refreshBandwidth]);
 
   // Story handler
   const handlePlayStory = useCallback(
@@ -429,6 +479,11 @@ function TourContent() {
                 >
                   Tour ({walkingTourLandmarks.length})
                 </button>
+              )}
+              {bandwidthTotal && bandwidthTotal !== "0 B" && (
+                <span className="rounded-full bg-stone-800/80 px-3 py-1 text-xs text-stone-400 backdrop-blur-sm">
+                  ~{bandwidthTotal}
+                </span>
               )}
               <a
                 href="/"
