@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t } from "@/lib/translations";
 
 interface LocationBadgeProps {
   onLocationUpdate?: (lat: number, lng: number) => void;
+  langCode: string;
 }
 
-export default function LocationBadge({ onLocationUpdate }: LocationBadgeProps) {
+export default function LocationBadge({ onLocationUpdate, langCode }: LocationBadgeProps) {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [error, setError] = useState(false);
 
@@ -50,7 +52,7 @@ export default function LocationBadge({ onLocationUpdate }: LocationBadgeProps) 
     if (error) {
       return (
         <div className="rounded-full bg-red-900/80 px-3 py-1 text-xs text-red-300 backdrop-blur-sm">
-          GPS unavailable
+          {t("gps_unavailable", langCode)}
         </div>
       );
     }
@@ -58,7 +60,7 @@ export default function LocationBadge({ onLocationUpdate }: LocationBadgeProps) 
     if (!coords) {
       return (
         <div className="rounded-full bg-stone-800/80 px-3 py-1 text-xs text-stone-400 backdrop-blur-sm">
-          Getting location...
+          {t("getting_location", langCode)}
         </div>
       );
     }
@@ -97,13 +99,13 @@ export default function LocationBadge({ onLocationUpdate }: LocationBadgeProps) 
               onClick={applyManual}
               className="rounded bg-amber-500 px-3 py-1 text-xs text-white"
             >
-              Set
+              {t("set", langCode)}
             </button>
             <button
               onClick={() => setEditing(false)}
               className="rounded bg-stone-700 px-3 py-1 text-xs text-stone-300"
             >
-              Cancel
+              {t("cancel", langCode)}
             </button>
           </div>
         </div>
@@ -112,7 +114,7 @@ export default function LocationBadge({ onLocationUpdate }: LocationBadgeProps) 
       <div
         onClick={() => setEditing(true)}
         className="relative cursor-pointer"
-        title="Click to manually set coordinates"
+        title={t("click_to_set", langCode)}
       >
         {renderBadge()}
       </div>

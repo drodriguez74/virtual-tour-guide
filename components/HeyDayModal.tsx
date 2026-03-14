@@ -1,9 +1,12 @@
 "use client";
 
+import { t } from "@/lib/translations";
+
 interface HeyDayModalProps {
   currentImage: string;
   historicalImage: string;
   caption?: { place: string; year: string } | null;
+  langCode: string;
   onClose: () => void;
 }
 
@@ -11,6 +14,7 @@ export default function HeyDayModal({
   currentImage,
   historicalImage,
   caption,
+  langCode,
   onClose,
 }: HeyDayModalProps) {
   const handleDownload = async () => {
@@ -25,12 +29,12 @@ export default function HeyDayModal({
     <div className="fixed inset-0 z-50 flex flex-col bg-black/95">
       {/* Header */}
       <div className="flex items-center justify-between p-4">
-        <h2 className="text-lg font-bold text-amber-400">Then vs Now</h2>
+        <h2 className="text-lg font-bold text-amber-400">{t("then_vs_now", langCode)}</h2>
         <button
           onClick={onClose}
           className="rounded-full bg-stone-800 px-3 py-1 text-sm text-stone-300"
         >
-          Close
+          {t("close", langCode)}
         </button>
       </div>
 
@@ -38,21 +42,21 @@ export default function HeyDayModal({
       <div className="flex flex-1 flex-col gap-2 overflow-hidden p-4 md:flex-row">
         <div className="flex flex-1 flex-col items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-            Today
+            {t("today", langCode)}
           </span>
           <img
             src={`data:image/jpeg;base64,${currentImage}`}
-            alt="Current view"
+            alt={t("alt_current_view", langCode)}
             className="max-h-full rounded-lg object-contain"
           />
         </div>
         <div className="flex flex-1 flex-col items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-amber-500">
-            In Its Heyday
+            {t("in_its_heyday", langCode)}
           </span>
           <img
             src={historicalImage}
-            alt="Historical reconstruction"
+            alt={t("alt_historical", langCode)}
             className="max-h-full rounded-lg object-contain"
           />
           {caption && (caption.place || caption.year) && (
@@ -75,7 +79,7 @@ export default function HeyDayModal({
           onClick={handleDownload}
           className="w-full rounded-xl bg-amber-500 py-3 font-semibold text-white"
         >
-          Download Historical Image
+          {t("download_historical", langCode)}
         </button>
       </div>
     </div>

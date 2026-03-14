@@ -3,31 +3,31 @@
  *
  * Voices: https://ai.google.dev/gemini-api/docs/speech-generation
  *
- * English voices are picked for character fit (accent, tone).
- * Spanish voices are picked for natural-sounding Spanish delivery.
+ * English voices: male by default.
+ * Spanish voices: female by default (Latin American style).
  *
- * ── English ──
+ * ── English (male) ──
  * Marco (Italy)       → Charon      (male, informative — gives a nice Italian cadence)
- * Elena (Greece)      → Kore        (female, firm and confident)
+ * Elena (Greece)      → Achird      (male, friendly and approachable)
  * Dr. Hassan (Egypt)  → Sadaltager  (male, knowledgeable and authoritative)
  * Default / Custom    → Achird      (male, friendly and approachable)
  *
- * ── Spanish ──
- * Marco (Italy)       → Orus        (male, firm and decisive — clean Spanish)
- * Elena (Greece)      → Aoede       (female, breezy and natural — smooth Spanish)
- * Dr. Hassan (Egypt)  → Alnilam     (male, firm and strong — clear Spanish)
- * Default / Custom    → Schedar     (male, even and balanced — neutral Spanish)
+ * ── Spanish (female, Latin American) ──
+ * Marco (Italy)       → Leda        (female, youthful and bright)
+ * Elena (Greece)      → Aoede       (female, breezy and natural)
+ * Dr. Hassan (Egypt)  → Algenib     (female, gravelly and informative)
+ * Default / Custom    → Aoede       (female, breezy and natural)
  */
 
 type VoicePair = { en: string; es: string };
 
 const DESTINATION_VOICES: Record<string, VoicePair> = {
-  italy:  { en: "Charon",     es: "Orus" },
-  greece: { en: "Kore",       es: "Aoede" },
-  egypt:  { en: "Sadaltager", es: "Alnilam" },
+  italy:  { en: "Charon",     es: "Leda" },
+  greece: { en: "Achird",     es: "Aoede" },
+  egypt:  { en: "Sadaltager", es: "Algenib" },
 };
 
-const DEFAULT_VOICES: VoicePair = { en: "Achird", es: "Schedar" };
+const DEFAULT_VOICES: VoicePair = { en: "Achird", es: "Aoede" };
 
 /**
  * Returns the Gemini TTS voice name for a destination + language combo.

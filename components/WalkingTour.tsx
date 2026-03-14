@@ -5,11 +5,13 @@ import {
   bearingToDirection,
   formatDistance,
 } from "@/lib/landmarks";
+import { t, t_dynamic, tContent } from "@/lib/translations";
 
 interface WalkingTourProps {
   landmarks: NearbyLandmarkWithDistance[];
   visitedKeys: Set<string>;
   currentLandmarkKey: string | null;
+  langCode: string;
   onClose: () => void;
 }
 
@@ -17,6 +19,7 @@ export default function WalkingTour({
   landmarks,
   visitedKeys,
   currentLandmarkKey,
+  langCode,
   onClose,
 }: WalkingTourProps) {
   const walkingMinutes = (meters: number) => Math.max(1, Math.round(meters / 80));
@@ -35,16 +38,20 @@ export default function WalkingTour({
         {/* Header */}
         <div className="flex items-center justify-between px-6 pb-2 pt-4">
           <div>
-            <h2 className="text-lg font-bold text-amber-400">Walking Tour</h2>
+            <h2 className="text-lg font-bold text-amber-400">{t("walking_tour", langCode)}</h2>
             <p className="text-xs text-stone-500">
-              {landmarks.length} landmark{landmarks.length !== 1 ? "s" : ""} nearby
+              {t_dynamic(
+                landmarks.length !== 1 ? "landmarks_nearby" : "landmark_nearby",
+                langCode,
+                { count: landmarks.length }
+              )}
             </p>
           </div>
           <button
             onClick={onClose}
             className="rounded-full bg-stone-800 px-3 py-1 text-sm text-stone-400"
           >
-            Close
+            {t("close", langCode)}
           </button>
         </div>
 
@@ -95,24 +102,28 @@ export default function WalkingTour({
                       isCurrent ? "text-amber-300" : isVisited ? "text-stone-500" : "text-white"
                     }`}
                   >
-                    {item.landmark.name}
+                    {tContent(`lm:${item.key}`, langCode, item.landmark.name)}
                   </h3>
                   <p className="text-xs text-stone-400">
-                    {item.landmark.stories.length} stor{item.landmark.stories.length !== 1 ? "ies" : "y"}
+                    {t_dynamic(
+                      item.landmark.stories.length !== 1 ? "stories_count" : "story_count",
+                      langCode,
+                      { count: item.landmark.stories.length }
+                    )}
                   </p>
                 </div>
 
                 {/* Distance / direction */}
                 <div className="shrink-0 text-right">
                   {isCurrent ? (
-                    <span className="text-xs font-semibold text-amber-400">You are here</span>
+                    <span className="text-xs font-semibold text-amber-400">{t("you_are_here", langCode)}</span>
                   ) : (
                     <>
                       <div className="text-sm font-semibold text-stone-200">
                         {formatDistance(item.distanceMeters)}
                       </div>
                       <div className="text-xs text-stone-500">
-                        {bearingToDirection(item.bearing)} &middot; ~{walkingMinutes(item.distanceMeters)} min
+                        {bearingToDirection(item.bearing)} &middot; ~{walkingMinutes(item.distanceMeters)} {t("min", langCode)}
                       </div>
                     </>
                   )}

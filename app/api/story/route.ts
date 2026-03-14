@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { LANDMARK_STORIES } from "@/lib/landmarks";
 
 export const maxDuration = 60;
 
@@ -6,14 +7,61 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
   try {
-    const { storyPrompt, langCode = "en" } = await req.json();
+    const { storyPrompt, langCode = "en", imageBase64, landmarkKey } =
+      await req.json();
 
     if (!storyPrompt) {
       return Response.json({ error: "No story prompt" }, { status: 400 });
     }
 
     const language = langCode === "es" ? "Spanish" : "English";
-    console.log(`[story] lang=${langCode} promptLen=${storyPrompt.length}`);
+    const landmark = landmarkKey ? LANDMARK_STORIES[landmarkKey] : null;
+    const meta = landmark?.heyday;
+    console.log(
+      `[story] lang=${langCode} landmark=${landmarkKey || "none"} hasImage=${!!imageBase64}`
+    );
+
+    // Build a context block that grounds scenes in the camera vantage point
+    // and the holistic essence of the venue
+    let vantagePreamble = "";
+    if (meta && landmark) {
+      vantagePreamble = `
+VENUE CONTEXT — ${landmark.name}:
+- Era: ${meta.target_era}
+- Style: ${meta.architectural_style}
+- Materials: ${meta.materials}
+- Visual details: ${meta.scene_tokens.join("; ")}
+- Crowds: ${meta.crowd_description}
+- Key features: ${meta.key_features.join("; ")}
+- Colors: ${meta.color_palette}
+
+The user is physically standing at ${landmark.name} right now, looking at a specific section of it through their camera.`;
+    }
+
+    // Build message content — with or without the camera image
+    const userContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+
+    if (imageBase64) {
+      userContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:image/jpeg;base64,${imageBase64}`,
+          detail: "low",
+        },
+      });
+      userContent.push({
+        type: "text",
+        text: `The attached photo shows what the user is currently looking at — their exact camera angle and vantage point at this location.
+${vantagePreamble}
+
+Story topic: ${storyPrompt}`,
+      });
+    } else {
+      userContent.push({
+        type: "text",
+        text: `${vantagePreamble ? vantagePreamble + "\n\n" : ""}Story topic: ${storyPrompt}`,
+      });
+    }
 
     // Generate narration script + scene prompts
     const scriptResponse = await openai.chat.completions.create({
@@ -21,13 +69,21 @@ export async function POST(req: Request) {
       messages: [
         {
           role: "system",
-          content: `You are a BBC documentary narrator. Generate content in ${language}. Return a JSON object with:
-- "narration": a 90-second narration script (about 200 words) written in a cinematic documentary style
-- "scenes": an array of exactly 5 image generation prompts. Each prompt should describe a cinematic scene for DALL-E 3 in vivid detail — hyper-realistic, BBC documentary style, dramatic lighting, cinematic composition. Each prompt must be in English regardless of narration language.
+          content: `You are a BBC documentary narrator and visual storyteller. Generate content in ${language}. Return a JSON object with:
+- "narration": a 60-second narration script (about 130 words) written in a cinematic documentary style
+- "scenes": an array of exactly 5 DALL-E 3 image prompts in English (regardless of narration language)
+
+CRITICAL SCENE GUIDELINES:
+${imageBase64 ? `- Scene 1 MUST be grounded in the exact camera angle from the attached photo — show THIS specific view of the site, reconstructed in the historical era described. Match the perspective, framing, and what's visible.` : "- Scene 1 should establish the location from a recognizable vantage point."}
+- Scenes 2-4 should expand outward — show nearby areas, the broader venue, crowds, and how this specific spot fits into the whole site. Mix close-up architectural details with wider establishing shots. Include the holistic atmosphere: sounds you'd hear, smells, the bustling life around this place.
+- Scene 5 should be a dramatic wide shot showing the full grandeur of the venue in its prime — the "pull back and reveal" moment.
+- ALL scenes: hyper-realistic, cinematic 16:9 widescreen composition, dramatic golden-hour lighting, BBC documentary illustration style.
+- ALL scenes: include historically accurate people, clothing, and activity appropriate to the era.
+${meta ? `- Use these specific materials and colors: ${meta.color_palette}` : ""}
 
 Return ONLY valid JSON, no markdown.`,
         },
-        { role: "user", content: storyPrompt },
+        { role: "user", content: userContent },
       ],
       temperature: 0.8,
     });
@@ -35,7 +91,8 @@ Return ONLY valid JSON, no markdown.`,
     const scriptText = scriptResponse.choices[0]?.message?.content || "";
     let parsed: { narration: string; scenes: string[] };
     try {
-      parsed = JSON.parse(scriptText);
+      const cleaned = scriptText.replace(/```json\s*|```\s*/g, "").trim();
+      parsed = JSON.parse(cleaned);
     } catch {
       return Response.json(
         { error: "Failed to parse story script" },
@@ -43,14 +100,14 @@ Return ONLY valid JSON, no markdown.`,
       );
     }
 
-    // Generate all 5 scene images in parallel
+    // Generate all 5 scene images in parallel — landscape 16:9 for cinematic player
     const imagePromises = parsed.scenes.map((scenePrompt) =>
       openai.images
         .generate({
           model: "dall-e-3",
           prompt: scenePrompt,
           n: 1,
-          size: "1024x1024",
+          size: "1792x1024",
           quality: "standard",
         })
         .then((res) => res.data?.[0]?.url || "")

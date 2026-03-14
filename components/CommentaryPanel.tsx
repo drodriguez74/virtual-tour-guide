@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
+import { t } from "@/lib/translations";
 
 export interface Message {
   role: "user" | "assistant";
@@ -18,6 +19,7 @@ interface CommentaryPanelProps {
   ttsEnabled: boolean;
   onToggleTts: () => void;
   onClose?: () => void;
+  langCode: string;
 }
 
 export default function CommentaryPanel({
@@ -31,6 +33,7 @@ export default function CommentaryPanel({
   ttsEnabled,
   onToggleTts,
   onClose,
+  langCode,
 }: CommentaryPanelProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -63,11 +66,17 @@ export default function CommentaryPanel({
     setInput("");
   };
 
+  const quickActions = [
+    { key: "tell_surprising", send: t("tell_surprising", "en") },
+    { key: "what_look_for", send: t("what_look_for", "en") },
+    { key: "hidden_details", send: t("hidden_details", "en") },
+  ];
+
   return (
     <div className="flex h-full flex-col bg-stone-900/95 backdrop-blur-md">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-stone-800 px-4 py-3 flex-shrink-0">
-        <h2 className="font-semibold text-amber-400">Tour Commentary</h2>
+        <h2 className="font-semibold text-amber-400">{t("tour_commentary", langCode)}</h2>
         <div className="flex gap-2 items-center">
           <button
             onClick={onToggleTts}
@@ -77,21 +86,21 @@ export default function CommentaryPanel({
                 : "bg-stone-800 text-stone-500"
             }`}
           >
-            {ttsEnabled ? "🔊 TTS On" : "🔇 TTS Off"}
+            {ttsEnabled ? t("tts_on", langCode) : t("tts_off", langCode)}
           </button>
           {onNewLocation && (
             <button
               onClick={onNewLocation}
               className="rounded-full bg-stone-800 px-3 py-1 text-xs text-stone-400 hover:bg-stone-700"
             >
-              New Location 📍
+              {t("new_location", langCode)}
             </button>
           )}
           {onClose && (
             <button
               onClick={onClose}
               className="rounded-full bg-stone-800 px-3 py-1 text-xs text-stone-400 hover:bg-stone-700"
-              title="Close panel"
+              title={t("close_panel", langCode)}
             >
               ✕
             </button>
@@ -107,8 +116,8 @@ export default function CommentaryPanel({
       >
         {messages.length === 0 && !streamingText && (
           <div className="py-12 text-center text-stone-500">
-            <p className="text-lg">Point your camera and tap</p>
-            <p className="mt-1 text-sm">or ask a question below</p>
+            <p className="text-lg">{t("point_camera", langCode)}</p>
+            <p className="mt-1 text-sm">{t("or_ask_below", langCode)}</p>
           </div>
         )}
 
@@ -153,17 +162,13 @@ export default function CommentaryPanel({
         {/* Quick follow-up buttons */}
         {!isLoading && !streamingText && messages.length > 0 && messages[messages.length - 1]?.role === "assistant" && (
           <div className="flex flex-wrap gap-2 pt-1">
-            {[
-              "Tell me something surprising",
-              "What should I look for here?",
-              "Any hidden details nearby?",
-            ].map((q) => (
+            {quickActions.map((qa) => (
               <button
-                key={q}
-                onClick={() => onSendMessage(q)}
+                key={qa.key}
+                onClick={() => onSendMessage(qa.send)}
                 className="rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-500/25"
               >
-                {q}
+                {t(qa.key, langCode)}
               </button>
             ))}
           </div>
@@ -192,7 +197,7 @@ export default function CommentaryPanel({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask a question..."
+          placeholder={t("ask_placeholder", langCode)}
           className="flex-1 rounded-full bg-stone-800 px-4 py-2 text-sm text-white placeholder-stone-500 outline-none focus:ring-1 focus:ring-amber-500"
         />
         <button

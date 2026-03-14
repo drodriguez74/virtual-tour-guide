@@ -1,13 +1,15 @@
 "use client";
 
 import { useRef, useEffect, useState, useCallback } from "react";
+import { t } from "@/lib/translations";
 
 interface CameraViewProps {
   onCapture: (base64: string) => void;
+  langCode: string;
   children?: React.ReactNode;
 }
 
-export default function CameraView({ onCapture, children }: CameraViewProps) {
+export default function CameraView({ onCapture, langCode, children }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -58,10 +60,9 @@ export default function CameraView({ onCapture, children }: CameraViewProps) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4 bg-stone-900 p-8 text-center">
         <div className="text-5xl">📷</div>
-        <h2 className="text-xl font-bold">Camera Access Required</h2>
+        <h2 className="text-xl font-bold">{t("camera_required", langCode)}</h2>
         <p className="text-stone-400">
-          Please allow camera access in your browser settings to use the tour
-          guide. On iOS, go to Settings &gt; Safari &gt; Camera.
+          {t("camera_description", langCode)}
         </p>
       </div>
     );
@@ -82,7 +83,7 @@ export default function CameraView({ onCapture, children }: CameraViewProps) {
       <button
         onClick={captureFrame}
         className="absolute inset-0 z-10"
-        aria-label="Capture frame"
+        aria-label={t("capture_frame", langCode)}
       />
 
       {/* Floating UI overlays */}

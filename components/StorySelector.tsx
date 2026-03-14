@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import { StoryChapter, Landmark } from "@/lib/landmarks";
+import { t, tContent } from "@/lib/translations";
 
 interface StorySelectorProps {
   landmark: Landmark;
+  landmarkKey?: string;
   onSelectChapter: (chapter: StoryChapter) => void;
   onClose: () => void;
+  langCode: string;
 }
 
 export default function StorySelector({
   landmark,
+  landmarkKey,
   onSelectChapter,
   onClose,
+  langCode,
 }: StorySelectorProps) {
   const [customTopic, setCustomTopic] = useState("");
 
@@ -45,15 +50,15 @@ export default function StorySelector({
         <div className="flex items-center justify-between px-6 pb-2 pt-4">
           <div>
             <h2 className="text-lg font-bold text-amber-400">
-              {landmark.name}
+              {landmarkKey ? tContent(`lm:${landmarkKey}`, langCode, landmark.name) : landmark.name}
             </h2>
-            <p className="text-xs text-stone-500">Choose a story to watch</p>
+            <p className="text-xs text-stone-500">{t("choose_story", langCode)}</p>
           </div>
           <button
             onClick={onClose}
             className="rounded-full bg-stone-800 px-3 py-1 text-sm text-stone-400"
           >
-            Close
+            {t("close", langCode)}
           </button>
         </div>
 
@@ -66,9 +71,9 @@ export default function StorySelector({
               className="flex w-full items-center gap-4 rounded-xl bg-stone-800/80 p-4 text-left transition-colors hover:bg-stone-800"
             >
               <div className="flex-1">
-                <h3 className="font-semibold text-white">{chapter.title}</h3>
+                <h3 className="font-semibold text-white">{tContent(`story:${chapter.id}:title`, langCode, chapter.title)}</h3>
                 <p className="mt-1 text-sm text-stone-400">
-                  {chapter.description}
+                  {tContent(`story:${chapter.id}:desc`, langCode, chapter.description)}
                 </p>
               </div>
               <div className="shrink-0 text-2xl text-amber-500">&#9654;</div>
@@ -79,7 +84,7 @@ export default function StorySelector({
         {/* Custom story request */}
         <div className="border-t border-stone-800 px-6 pb-8 pt-4">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-stone-500">
-            Request a Custom Story
+            {t("request_custom", langCode)}
           </p>
           <div className="flex gap-2">
             <input
@@ -87,7 +92,7 @@ export default function StorySelector({
               value={customTopic}
               onChange={(e) => setCustomTopic(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleCustomStory()}
-              placeholder='e.g. "What did Romans smell like?"'
+              placeholder={t("custom_placeholder", langCode)}
               className="flex-1 rounded-xl bg-stone-800 px-4 py-2.5 text-sm text-white placeholder-stone-500 outline-none focus:ring-1 focus:ring-amber-500"
             />
             <button
@@ -95,7 +100,7 @@ export default function StorySelector({
               disabled={!customTopic.trim()}
               className="shrink-0 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-400 disabled:opacity-40"
             >
-              Go
+              {t("go", langCode)}
             </button>
           </div>
         </div>
