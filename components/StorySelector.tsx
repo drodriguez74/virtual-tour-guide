@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { StoryChapter, Landmark } from "@/lib/landmarks";
 import { t, tContent } from "@/lib/translations";
+import { haptic } from "@/lib/haptics";
 
 interface StorySelectorProps {
   landmark: Landmark;
@@ -67,7 +68,7 @@ export default function StorySelector({
           {landmark.stories.map((chapter) => (
             <button
               key={chapter.id}
-              onClick={() => onSelectChapter(chapter)}
+              onClick={() => { haptic("light"); onSelectChapter(chapter); }}
               className="flex w-full items-center gap-4 rounded-xl bg-stone-800/80 p-4 text-left transition-colors hover:bg-stone-800"
             >
               <div className="flex-1">

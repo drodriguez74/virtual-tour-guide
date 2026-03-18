@@ -19,6 +19,7 @@ import { trackRequest, estimateBytes, getUsageSummary } from "@/lib/bandwidth-tr
 import { t, tContent } from "@/lib/translations";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
+import { haptic } from "@/lib/haptics";
 
 function stripMarkdown(text: string): string {
   return text
@@ -55,12 +56,13 @@ function TourContent() {
 
   // Camera capture
   const lastCaptureRef = useRef<string>("");
+  const cameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [arOverlayActive, setArOverlayActive] = useState(false);
 
   // Heyday
   const [heyDayImage, setHeyDayImage] = useState<string | null>(null);
   const [heyDayCaption, setHeyDayCaption] = useState<{ place: string; year: string } | null>(null);
   const [heyDayLoading, setHeyDayLoading] = useState(false);
-  const [showEraPicker, setShowEraPicker] = useState(false);
 
   // Story
   const [showStorySelector, setShowStorySelector] = useState(false);
@@ -108,7 +110,10 @@ function TourContent() {
   const handleLocationUpdate = useCallback((lat: number, lng: number) => {
     coordsRef.current = { lat, lng };
     const nearby = findNearbyLandmark(lat, lng);
-    setNearbyLandmark(nearby);
+    setNearbyLandmark((prev) => {
+      if (nearby && nearby.key !== prev?.key) haptic("heavy");
+      return nearby;
+    });
     // Update walking tour data
     setWalkingTourLandmarks(findLandmarksWithinRadius(lat, lng, 3000));
     // Track visited landmarks
@@ -388,16 +393,15 @@ function TourContent() {
   }, [isListening, langCode, sendToAPI]);
 
   // Heyday handler — with compression, caching, and bandwidth tracking
-  const handleHeyday = useCallback(async (era?: string) => {
+  const handleHeyday = useCallback(async () => {
     if (!lastCaptureRef.current || heyDayLoading) return;
     setHeyDayLoading(true);
-    setShowEraPicker(false);
 
     const lmKey = nearbyLandmark?.key;
 
     // Check cache first (only useful when we know the landmark)
     if (lmKey) {
-      const cached = await getCachedHeyday(lmKey, era);
+      const cached = await getCachedHeyday(lmKey);
       if (cached) {
         setHeyDayImage(cached.imageDataUrl);
         setHeyDayCaption(cached.caption);
@@ -411,7 +415,6 @@ function TourContent() {
       const compressed = await resizeBase64ForAPI(lastCaptureRef.current);
       const body = JSON.stringify({
         imageBase64: compressed,
-        era,
         landmarkKey: lmKey,
       });
 
@@ -435,7 +438,7 @@ function TourContent() {
 
         // Cache for known landmarks
         if (lmKey) {
-          cacheHeyday(lmKey, data.imageUrl, data.caption || null, era);
+          cacheHeyday(lmKey, data.imageUrl, data.caption || null);
         }
       } else {
         console.error("[TourPage] Heyday returned no image:", data);
@@ -529,7 +532,7 @@ function TourContent() {
       <OfflineBanner />
       {/* Camera view - top half or full screen */}
       <div className={`relative ${showPanel ? "h-[40vh]" : "h-full"} transition-all duration-300`}>
-        <CameraView onCapture={handleCapture} langCode={langCode}>
+        <CameraView onCapture={handleCapture} langCode={langCode} externalVideoRef={cameraVideoRef} captureDisabled={arOverlayActive}>
           {/* Top bar */}
           <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between p-4">
             <LocationBadge onLocationUpdate={handleLocationUpdate} langCode={langCode} />
@@ -537,6 +540,7 @@ function TourContent() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
+                  haptic("light");
                   unlockAudio();
                   setAudioGuideEnabled((prev) => !prev);
                 }}
@@ -589,49 +593,24 @@ function TourContent() {
           {/* Bottom overlay buttons */}
           <div className="absolute inset-x-0 bottom-4 z-20 flex items-center justify-center gap-3 px-4">
             {lastCaptureRef.current && (
-              <div className="relative">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowEraPicker((prev) => !prev);
-                  }}
-                  disabled={heyDayLoading}
-                  className="rounded-full bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm disabled:opacity-50"
-                >
-                  {heyDayLoading ? t("generating", langCode) : t("show_in_heyday", langCode)}
-                </button>
-                {showEraPicker && !heyDayLoading && (
-                  <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 rounded-xl bg-stone-900/95 p-2 backdrop-blur-md shadow-xl">
-                    <div className="flex flex-col gap-1 whitespace-nowrap">
-                      {[
-                        { label: t("era_auto", langCode), value: undefined },
-                        { label: t("era_ancient", langCode), value: "Ancient era, around 100 AD" },
-                        { label: t("era_medieval", langCode), value: "Medieval era, around 1200 AD" },
-                        { label: t("era_renaissance", langCode), value: "Renaissance era, around 1500 AD" },
-                        { label: t("era_victorian", langCode), value: "Victorian era, around 1880" },
-                        { label: t("era_midcentury", langCode), value: "Mid-20th century, around 1950" },
-                      ].map((opt) => (
-                        <button
-                          key={opt.label}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleHeyday(opt.value);
-                          }}
-                          className="rounded-lg px-4 py-2 text-left text-xs text-stone-200 hover:bg-amber-500/20 transition-colors"
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic("medium");
+                  handleHeyday();
+                }}
+                disabled={heyDayLoading}
+                className="rounded-full bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm disabled:opacity-50"
+              >
+                {heyDayLoading ? t("generating", langCode) : t("show_in_heyday", langCode)}
+              </button>
             )}
 
             {(nearbyLandmark || detectedPlace) && (
               <button
                 onClick={async (e) => {
                   e.stopPropagation();
+                  haptic("medium");
                   if (nearbyLandmark) {
                     setShowStorySelector(true);
                   } else if (dynamicLandmark) {
@@ -735,9 +714,12 @@ function TourContent() {
             historicalImage={heyDayImage}
             caption={heyDayCaption}
             langCode={langCode}
+            videoRef={cameraVideoRef}
+            onARModeChange={setArOverlayActive}
             onClose={() => {
               setHeyDayImage(null);
               setHeyDayCaption(null);
+              setArOverlayActive(false);
             }}
           />
         </ErrorBoundary>

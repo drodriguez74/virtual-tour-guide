@@ -39,6 +39,12 @@ const translations: Record<string, Record<string, string>> = {
   download_historical: { en: "Download Historical Image", es: "Descargar Imagen Histórica" },
   alt_current_view: { en: "Current view", es: "Vista actual" },
   alt_historical: { en: "Historical reconstruction", es: "Reconstrucción histórica" },
+  ar_view: { en: "AR View", es: "Vista AR" },
+  side_by_side: { en: "Side by Side", es: "Lado a Lado" },
+  blend_label: { en: "Blend Past & Present", es: "Mezcla Pasado y Presente" },
+  present: { en: "Present", es: "Presente" },
+  past: { en: "Past", es: "Pasado" },
+  take_screenshot: { en: "Screenshot", es: "Captura" },
 
   // --- StoryPlayer.tsx ---
   play: { en: "\u25b6 Play", es: "\u25b6 Reproducir" },

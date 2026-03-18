@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from "react";
 import { t } from "@/lib/translations";
+import { haptic } from "@/lib/haptics";
 
 export interface Message {
   role: "user" | "assistant";
@@ -62,6 +63,7 @@ export default function CommentaryPanel({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
+    haptic("light");
     onSendMessage(input.trim());
     setInput("");
   };
@@ -79,7 +81,7 @@ export default function CommentaryPanel({
         <h2 className="font-semibold text-amber-400">{t("tour_commentary", langCode)}</h2>
         <div className="flex gap-2 items-center">
           <button
-            onClick={onToggleTts}
+            onClick={() => { haptic("light"); onToggleTts(); }}
             className={`rounded-full px-3 py-1 text-xs transition-colors ${
               ttsEnabled
                 ? "bg-amber-500/20 text-amber-400"
@@ -165,7 +167,7 @@ export default function CommentaryPanel({
             {quickActions.map((qa) => (
               <button
                 key={qa.key}
-                onClick={() => onSendMessage(qa.send)}
+                onClick={() => { haptic("light"); onSendMessage(qa.send); }}
                 className="rounded-full bg-amber-500/15 px-3 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-500/25"
               >
                 {t(qa.key, langCode)}

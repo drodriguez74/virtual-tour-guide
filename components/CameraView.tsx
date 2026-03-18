@@ -2,15 +2,24 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { t } from "@/lib/translations";
+import { haptic } from "@/lib/haptics";
 
 interface CameraViewProps {
   onCapture: (base64: string) => void;
   langCode: string;
   children?: React.ReactNode;
+  externalVideoRef?: React.MutableRefObject<HTMLVideoElement | null>;
+  captureDisabled?: boolean;
 }
 
-export default function CameraView({ onCapture, langCode, children }: CameraViewProps) {
+export default function CameraView({ onCapture, langCode, children, externalVideoRef, captureDisabled }: CameraViewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Sync external ref with internal ref
+  const setVideoRef = useCallback((el: HTMLVideoElement | null) => {
+    (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = el;
+    if (externalVideoRef) externalVideoRef.current = el;
+  }, [externalVideoRef]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -53,6 +62,7 @@ export default function CameraView({ onCapture, langCode, children }: CameraView
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
     const base64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+    haptic("light");
     onCapture(base64);
   }, [onCapture]);
 
@@ -71,7 +81,7 @@ export default function CameraView({ onCapture, langCode, children }: CameraView
   return (
     <div className="relative h-full w-full bg-black">
       <video
-        ref={videoRef}
+        ref={setVideoRef}
         autoPlay
         playsInline
         muted
@@ -80,11 +90,13 @@ export default function CameraView({ onCapture, langCode, children }: CameraView
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Tap to capture overlay */}
-      <button
-        onClick={captureFrame}
-        className="absolute inset-0 z-10"
-        aria-label={t("capture_frame", langCode)}
-      />
+      {!captureDisabled && (
+        <button
+          onClick={captureFrame}
+          className="absolute inset-0 z-10"
+          aria-label={t("capture_frame", langCode)}
+        />
+      )}
 
       {/* Floating UI overlays */}
       {children}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
 import { t } from "@/lib/translations";
+import { haptic } from "@/lib/haptics";
 
 function stripMarkdown(text: string): string {
   return text
@@ -79,6 +80,7 @@ export default function StoryPlayer({
           if (intervalRef.current) clearInterval(intervalRef.current);
           return prev;
         }
+        haptic("heavy");
         return prev + 1;
       });
     }, 8000);
@@ -168,6 +170,7 @@ export default function StoryPlayer({
   }, [narration, langCode, destination]);
 
   const togglePause = () => {
+    haptic("light");
     if (audioRef.current) {
       if (isPaused) {
         audioRef.current.play().catch(() => {});
