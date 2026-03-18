@@ -11,6 +11,8 @@
  */
 
 import { getVoice } from "@/lib/voices";
+import { MAX_TTS_TEXT } from "@/lib/api-utils";
+import { apiLog } from "@/lib/api-logger";
 
 export const maxDuration = 60;
 
@@ -113,20 +115,22 @@ function buildWavHeader(pcmByteLength: number): Buffer {
 }
 
 export async function POST(req: Request) {
+  const log = apiLog("tts-stream");
   try {
     const { text, destination, langCode } = await req.json();
     const apiKey =
       process.env.GEMINI_API_KEY || process.env.GEMINI_SPEECH_API_KEY;
 
-    if (!apiKey || !text?.trim()) {
+    if (!apiKey) {
+      return new Response("Service unavailable", { status: 503 });
+    }
+    if (!text?.trim() || typeof text !== "string" || text.length > MAX_TTS_TEXT) {
       return new Response("Bad request", { status: 400 });
     }
 
     // Pick voice based on guide character + language
     const voiceName = getVoice(destination, langCode);
     const chunks = splitIntoChunks(text);
-
-    console.log(`[tts-stream] voice=${voiceName} lang=${langCode} dest=${destination} chunks=${chunks.length} textLen=${text.length}`);
 
     // Fire all chunk requests in parallel — store promises in order
     const chunkPromises = chunks.map((chunk, i) =>
@@ -163,6 +167,8 @@ export async function POST(req: Request) {
       },
     });
 
+    log.done({ lang: langCode, dest: destination, voice: voiceName, chunks: chunks.length, textLen: text.length });
+
     return new Response(stream, {
       headers: {
         "Content-Type": "audio/wav",
@@ -170,7 +176,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("[tts-stream] error:", error?.message || error);
-    return new Response(error?.message || "Internal Server Error", { status: 500 });
+    log.error(error?.message || "unknown");
+    return new Response("Internal Server Error", { status: 500 });
   }
 }

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { apiLog } from "@/lib/api-logger";
 
 export async function POST(req: NextRequest) {
+  const log = apiLog("geocode");
   try {
     const { query } = await req.json();
 
@@ -37,12 +39,15 @@ export async function POST(req: NextRequest) {
 
     const result = data[0];
 
+    log.done({ query });
+
     return NextResponse.json({
       lat: parseFloat(result.lat),
       lng: parseFloat(result.lon),
       displayName: result.display_name,
     });
-  } catch {
+  } catch (error: any) {
+    log.error(error?.message || "unknown");
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

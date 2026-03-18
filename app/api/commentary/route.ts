@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI, Content, Part } from "@google/generative-ai";
 import { getPrompt } from "@/lib/prompts";
+import { MAX_USER_TEXT, MAX_IMAGE_BASE64, MAX_MESSAGES, serverError } from "@/lib/api-utils";
+import { apiLog } from "@/lib/api-logger";
 
 export const maxDuration = 60;
 
@@ -17,18 +19,24 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview"; // try base name
 
 export async function POST(req: Request) {
+  const log = apiLog("commentary");
   try {
-    const {
-      messages,
-      imageBase64,
-      destination,
-      latitude,
-      longitude,
-      langCode,
-    } = await req.json();
+    const body = await req.json();
+    const { messages, imageBase64, destination, latitude, longitude, langCode } = body;
+
+    // Input validation
+    if (messages && (!Array.isArray(messages) || messages.length > MAX_MESSAGES)) {
+      return Response.json({ error: "Invalid messages" }, { status: 400 });
+    }
+    if (imageBase64 && (typeof imageBase64 !== "string" || imageBase64.length > MAX_IMAGE_BASE64)) {
+      return Response.json({ error: "Image too large" }, { status: 400 });
+    }
+    const lastMsg = messages?.[messages.length - 1]?.content;
+    if (lastMsg && typeof lastMsg === "string" && lastMsg.length > MAX_USER_TEXT) {
+      return Response.json({ error: "Message too long" }, { status: 400 });
+    }
 
     const systemPrompt = getPrompt(destination, langCode, latitude, longitude);
-    console.log(`[commentary] dest=${destination} lang=${langCode} lat=${latitude} lng=${longitude} msgs=${messages?.length || 0} hasImage=${!!imageBase64}`);
 
     // Build conversation history if any
     const history: Content[] = [];
@@ -122,6 +130,8 @@ export async function POST(req: Request) {
       });
     }
 
+    log.done({ lang: langCode, dest: destination, msgs: messages?.length || 0, hasImage: !!imageBase64 });
+
     return new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
@@ -129,10 +139,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: any) {
-    console.error("[commentary] API error:", error?.message || error);
-    return Response.json(
-      { error: error?.message || "Failed to generate commentary" },
-      { status: 500 }
-    );
+    log.error(error?.message || "unknown");
+    return serverError();
   }
 }

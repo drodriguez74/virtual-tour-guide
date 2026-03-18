@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getVoice } from "@/lib/voices";
+import { MAX_TTS_TEXT } from "@/lib/api-utils";
+import { apiLog } from "@/lib/api-logger";
 
 export const maxDuration = 60;
 
@@ -110,6 +112,7 @@ function buildWavHeader(pcmByteLength: number): Buffer {
 }
 
 export async function POST(req: Request) {
+  const log = apiLog("tts");
   try {
     const { text, destination, langCode } = await req.json();
     const apiKey =
@@ -118,15 +121,14 @@ export async function POST(req: Request) {
     if (!apiKey) {
       return NextResponse.json({ error: "No API key" }, { status: 500 });
     }
-    if (!text?.trim()) {
-      return NextResponse.json({ error: "No text" }, { status: 400 });
+    if (!text?.trim() || typeof text !== "string" || text.length > MAX_TTS_TEXT) {
+      return NextResponse.json({ error: "Invalid text" }, { status: 400 });
     }
 
     // Pick voice based on guide character + language
     const voiceName = getVoice(destination, langCode);
 
     const chunks = splitIntoChunks(text);
-    console.log(`[tts] voice=${voiceName} lang=${langCode} dest=${destination} chunks=${chunks.length} textLen=${text.length}`);
 
     // If short text (single chunk), use the fast non-chunked path
     if (chunks.length === 1) {
@@ -165,14 +167,16 @@ export async function POST(req: Request) {
       combinedPcm,
     ]);
 
+    log.done({ lang: langCode, dest: destination, voice: voiceName, chunks: chunks.length, textLen: text.length });
+
     return NextResponse.json({
       audioContent: wav.toString("base64"),
       mimeType: "audio/wav",
     });
   } catch (error: any) {
-    console.error("[tts] error:", error?.message || error);
+    log.error(error?.message || "unknown");
     return NextResponse.json(
-      { error: error?.message || "Internal Server Error" },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }

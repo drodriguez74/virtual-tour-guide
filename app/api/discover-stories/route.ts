@@ -1,16 +1,19 @@
 import OpenAI from "openai";
+import { serverError } from "@/lib/api-utils";
+import { apiLog } from "@/lib/api-logger";
 
 export const maxDuration = 60;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
+  const log = apiLog("discover-stories");
   try {
     const { placeDescription, destination, langCode = "en" } = await req.json();
 
-    if (!placeDescription) {
+    if (!placeDescription || typeof placeDescription !== "string" || placeDescription.length > 5000) {
       return Response.json(
-        { error: "No place description provided" },
+        { error: "Invalid place description" },
         { status: 400 }
       );
     }
@@ -75,6 +78,8 @@ Return ONLY valid JSON, no markdown.`,
       );
     }
 
+    log.done({ lang: langCode, dest: destination, stories: parsed.stories.length });
+
     return Response.json({
       placeName: parsed.placeName,
       stories: parsed.stories,
@@ -82,8 +87,7 @@ Return ONLY valid JSON, no markdown.`,
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Failed to discover stories";
-    const stack = error instanceof Error ? error.stack : undefined;
-    console.error("[discover-stories] API error:", message, stack);
-    return Response.json({ error: message }, { status: 500 });
+    log.error(message);
+    return serverError();
   }
 }

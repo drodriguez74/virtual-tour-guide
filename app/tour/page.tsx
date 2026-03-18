@@ -17,6 +17,8 @@ import { resizeBase64ForAPI } from "@/lib/image-utils";
 import { getCachedHeyday, cacheHeyday } from "@/lib/heyday-cache";
 import { trackRequest, estimateBytes, getUsageSummary } from "@/lib/bandwidth-tracker";
 import { t, tContent } from "@/lib/translations";
+import ErrorBoundary from "@/components/ErrorBoundary";
+import OfflineBanner from "@/components/OfflineBanner";
 
 function stripMarkdown(text: string): string {
   return text
@@ -524,6 +526,7 @@ function TourContent() {
 
   return (
     <div className="fixed inset-0 flex flex-col">
+      <OfflineBanner />
       {/* Camera view - top half or full screen */}
       <div className={`relative ${showPanel ? "h-[40vh]" : "h-full"} transition-all duration-300`}>
         <CameraView onCapture={handleCapture} langCode={langCode}>
@@ -726,16 +729,18 @@ function TourContent() {
 
       {/* Heyday Modal */}
       {heyDayImage && lastCaptureRef.current && (
-        <HeyDayModal
-          currentImage={lastCaptureRef.current}
-          historicalImage={heyDayImage}
-          caption={heyDayCaption}
-          langCode={langCode}
-          onClose={() => {
-            setHeyDayImage(null);
-            setHeyDayCaption(null);
-          }}
-        />
+        <ErrorBoundary fallback={null}>
+          <HeyDayModal
+            currentImage={lastCaptureRef.current}
+            historicalImage={heyDayImage}
+            caption={heyDayCaption}
+            langCode={langCode}
+            onClose={() => {
+              setHeyDayImage(null);
+              setHeyDayCaption(null);
+            }}
+          />
+        </ErrorBoundary>
       )}
 
       {/* Walking Tour */}
@@ -762,20 +767,22 @@ function TourContent() {
 
       {/* Story Player */}
       {storyData && (
-        <StoryPlayer
-          title={storyData.title}
-          landmarkName={storyData.landmarkName}
-          narration={storyData.narration}
-          images={storyData.images}
-          langCode={langCode}
-          destination={destination}
-          onClose={() => {
-            setStoryData(null);
-            if (nearbyLandmark || dynamicLandmark) {
-              setShowStorySelector(true);
-            }
-          }}
-        />
+        <ErrorBoundary fallback={null}>
+          <StoryPlayer
+            title={storyData.title}
+            landmarkName={storyData.landmarkName}
+            narration={storyData.narration}
+            images={storyData.images}
+            langCode={langCode}
+            destination={destination}
+            onClose={() => {
+              setStoryData(null);
+              if (nearbyLandmark || dynamicLandmark) {
+                setShowStorySelector(true);
+              }
+            }}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );
@@ -790,7 +797,9 @@ export default function TourPage() {
         </div>
       }
     >
-      <TourContent />
+      <ErrorBoundary>
+        <TourContent />
+      </ErrorBoundary>
     </Suspense>
   );
 }

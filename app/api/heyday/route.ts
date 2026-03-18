@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { LANDMARK_STORIES, HeydayMeta } from "@/lib/landmarks";
+import { MAX_IMAGE_BASE64, serverError } from "@/lib/api-utils";
+import { apiLog } from "@/lib/api-logger";
 
 // Vercel serverless config — extend timeout for GPT-4o + DALL-E pipeline
 export const maxDuration = 60; // seconds (requires Vercel Pro for >10s)
@@ -35,11 +37,15 @@ Return JSON (no markdown, no code fences):
 }
 
 export async function POST(req: Request) {
+  const log = apiLog("heyday");
   try {
     const { imageBase64, era, landmarkKey } = await req.json();
 
-    if (!imageBase64) {
-      return Response.json({ error: "No image provided" }, { status: 400 });
+    if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.length > MAX_IMAGE_BASE64) {
+      return Response.json({ error: "Invalid or missing image" }, { status: 400 });
+    }
+    if (era && (typeof era !== "string" || era.length > 200)) {
+      return Response.json({ error: "Invalid era" }, { status: 400 });
     }
 
     // Look up metadata when we know which landmark this is
@@ -178,14 +184,11 @@ Return your response as JSON with exactly this format (no markdown, no code fenc
       );
     }
 
+    log.done({ landmark: landmarkKey || "unknown", era: caption.year || era || "auto" });
+
     return Response.json({ imageUrl, caption });
   } catch (error: any) {
-    console.error("Heyday API error:", error);
-    const message =
-      error?.message || error?.code || "Failed to generate historical image";
-    return Response.json(
-      { error: message },
-      { status: 500 }
-    );
+    log.error(error?.message || "unknown");
+    return serverError();
   }
 }

@@ -1,25 +1,28 @@
 import OpenAI from "openai";
 import { LANDMARK_STORIES } from "@/lib/landmarks";
+import { MAX_IMAGE_BASE64, serverError } from "@/lib/api-utils";
+import { apiLog } from "@/lib/api-logger";
 
 export const maxDuration = 60;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: Request) {
+  const log = apiLog("story");
   try {
     const { storyPrompt, langCode = "en", imageBase64, landmarkKey } =
       await req.json();
 
-    if (!storyPrompt) {
-      return Response.json({ error: "No story prompt" }, { status: 400 });
+    if (!storyPrompt || typeof storyPrompt !== "string" || storyPrompt.length > 2000) {
+      return Response.json({ error: "Invalid story prompt" }, { status: 400 });
+    }
+    if (imageBase64 && (typeof imageBase64 !== "string" || imageBase64.length > MAX_IMAGE_BASE64)) {
+      return Response.json({ error: "Image too large" }, { status: 400 });
     }
 
     const language = langCode === "es" ? "Spanish" : "English";
     const landmark = landmarkKey ? LANDMARK_STORIES[landmarkKey] : null;
     const meta = landmark?.heyday;
-    console.log(
-      `[story] lang=${langCode} landmark=${landmarkKey || "none"} hasImage=${!!imageBase64}`
-    );
 
     // Build a context block that grounds scenes in the camera vantage point
     // and the holistic essence of the venue
@@ -116,15 +119,14 @@ Return ONLY valid JSON, no markdown.`,
 
     const imageUrls = await Promise.all(imagePromises);
 
+    log.done({ lang: langCode, landmark: landmarkKey || "none", hasImage: !!imageBase64, images: imageUrls.filter(Boolean).length });
+
     return Response.json({
       narration: parsed.narration,
       images: imageUrls.filter(Boolean),
     });
   } catch (error: any) {
-    console.error("[story] API error:", error?.message || error);
-    return Response.json(
-      { error: error?.message || "Failed to generate story" },
-      { status: 500 }
-    );
+    log.error(error?.message || "unknown");
+    return serverError();
   }
 }
