@@ -45,11 +45,9 @@ export default function StoryPlayer({
   onClose,
 }: StoryPlayerProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [audioReady, setAudioReady] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Pre-assign a random KB variant per image slot (stable across renders)
   const kbAssignments = useRef<string[]>(
@@ -73,7 +71,7 @@ export default function StoryPlayer({
 
   // Auto-advance images
   useEffect(() => {
-    if (isPaused || images.length === 0) return;
+    if (images.length === 0) return;
     intervalRef.current = setInterval(() => {
       setCurrentIndex((prev) => {
         if (prev >= images.length - 1) {
@@ -87,99 +85,31 @@ export default function StoryPlayer({
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, images.length]);
+  }, [images.length]);
 
-  // TTS — fetch streaming audio and play via blob URL
+  // Clean up browser TTS on unmount
   useEffect(() => {
-    if (!narration?.trim()) return;
-
-    // Abort any in-flight request
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    // Stop previous audio
-    if (audioRef.current) {
-      try {
-        audioRef.current.pause();
-        const oldSrc = audioRef.current.src;
-        audioRef.current.src = "";
-        audioRef.current.load();
-        if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-      } catch (e) {
-        console.warn("[StoryPlayer] Error cleaning up previous audio:", e);
-      }
-      audioRef.current = null;
-    }
-    setAudioReady(false);
-
-    const fetchAudio = async () => {
-      try {
-        const res = await fetch("/api/tts-stream", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: stripMarkdown(narration), destination, langCode }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok || !res.body) throw new Error(`TTS failed: ${res.status}`);
-
-        const arrayBuffer = await res.arrayBuffer();
-        if (controller.signal.aborted) return;
-
-        const blob = new Blob([arrayBuffer], { type: "audio/wav" });
-        const blobUrl = URL.createObjectURL(blob);
-
-        const audio = new Audio(blobUrl);
-        audio.onerror = () => {
-          console.error("[StoryPlayer] Audio playback error");
-          speakWithBrowserTTS(stripMarkdown(narration), langCode);
-          setAudioReady(true);
-        };
-
-        audioRef.current = audio;
-        setAudioReady(true);
-        audio.play().catch((err) =>
-          console.warn("[StoryPlayer] Auto-play blocked:", err)
-        );
-      } catch (e: unknown) {
-        if (e instanceof DOMException && e.name === "AbortError") return;
-        console.error("[StoryPlayer] TTS error, falling back to browser TTS:", e);
-        speakWithBrowserTTS(stripMarkdown(narration), langCode);
-        setAudioReady(true);
-      }
-    };
-
-    fetchAudio();
-
     return () => {
-      controller.abort();
       stopBrowserTTS();
-      if (audioRef.current) {
-        try {
-          const oldSrc = audioRef.current.src;
-          audioRef.current.pause();
-          audioRef.current.src = "";
-          if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-        } catch (e) {
-          console.warn("[StoryPlayer] Cleanup error:", e);
-        }
-        audioRef.current = null;
-      }
     };
-  }, [narration, langCode, destination]);
+  }, []);
 
-  const togglePause = () => {
+  const toggleNarration = useCallback(() => {
     haptic("light");
-    if (audioRef.current) {
-      if (isPaused) {
-        audioRef.current.play().catch(() => {});
-      } else {
-        audioRef.current.pause();
-      }
+    if (isSpeaking) {
+      stopBrowserTTS();
+      setIsSpeaking(false);
+      return;
     }
-    setIsPaused(!isPaused);
-  };
+    stopBrowserTTS();
+    const utterance = speakWithBrowserTTS(stripMarkdown(narration), langCode);
+    if (utterance) {
+      utteranceRef.current = utterance;
+      setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+    }
+  }, [isSpeaking, narration, langCode]);
 
   const handleShare = async () => {
     const shareData: ShareData = {
@@ -211,16 +141,6 @@ export default function StoryPlayer({
 
   const handleClose = () => {
     stopBrowserTTS();
-    if (audioRef.current) {
-      try {
-        const oldSrc = audioRef.current.src;
-        audioRef.current.pause();
-        audioRef.current.src = "";
-        if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-      } catch (e) {
-        console.warn("[StoryPlayer] Close cleanup error:", e);
-      }
-    }
     onClose();
   };
 
@@ -274,16 +194,6 @@ export default function StoryPlayer({
           {t("close", langCode)}
         </button>
 
-        {/* Audio loading indicator */}
-        {!audioReady && (
-          <div className="absolute left-1/2 top-16 z-10 -translate-x-1/2">
-            <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 text-xs text-white/70 backdrop-blur-sm">
-              <div className="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-              {t("generating_audio", langCode)}
-            </div>
-          </div>
-        )}
-
         {/* Subtitle-style narration — pinned to bottom of letterbox frame */}
         <div className="absolute inset-x-0 bottom-16 z-10 flex justify-center px-4">
           <div className="max-h-32 max-w-2xl overflow-y-auto rounded-lg bg-black/60 px-5 py-3 backdrop-blur-md">
@@ -312,10 +222,14 @@ export default function StoryPlayer({
         {/* Controls — inside letterbox at very bottom */}
         <div className="absolute inset-x-0 bottom-3 z-10 flex items-center justify-center gap-4">
           <button
-            onClick={togglePause}
-            className="rounded-full bg-white/20 px-5 py-1.5 text-sm text-white backdrop-blur-sm transition-colors hover:bg-white/30"
+            onClick={toggleNarration}
+            className={`rounded-full px-5 py-1.5 text-sm backdrop-blur-sm transition-colors ${
+              isSpeaking
+                ? "bg-red-500/30 text-red-300 hover:bg-red-500/40"
+                : "bg-white/20 text-white hover:bg-white/30"
+            }`}
           >
-            {isPaused ? t("play", langCode) : t("pause", langCode)}
+            {isSpeaking ? t("stop_reading", langCode) : t("read_aloud", langCode)}
           </button>
           <div className="flex gap-1.5">
             {images.map((_, i) => (

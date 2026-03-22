@@ -23,6 +23,8 @@ const translations: Record<string, Record<string, string>> = {
   new_location: { en: "New Location 📍", es: "Nueva Ubicación 📍" },
   tts_on: { en: "🔊 TTS On", es: "🔊 TTS On" },
   tts_off: { en: "🔇 TTS Off", es: "🔇 TTS Off" },
+  read_aloud: { en: "🔊 Read aloud", es: "🔊 Leer en voz alta" },
+  stop_reading: { en: "⏹ Stop", es: "⏹ Detener" },
   point_camera: { en: "Point your camera and tap", es: "Apunta tu cámara y toca" },
   or_ask_below: { en: "or ask a question below", es: "o haz una pregunta abajo" },
   tell_surprising: { en: "Tell me something surprising", es: "Cuéntame algo sorprendente" },
@@ -215,6 +217,54 @@ const translations: Record<string, Record<string, string>> = {
   "story:como_villas:desc": { es: "De senadores romanos a George Clooney — 2.000 años de lujo junto al lago" },
   "story:como_silk:title": { es: "La Capital de la Seda de Europa" },
   "story:como_silk:desc": { es: "Cómo el Lago de Como vistió a las casas de moda del mundo" },
+
+  // --- TTS pause/resume ---
+  pause_reading: { en: "⏸ Pause", es: "⏸ Pausa" },
+  resume_reading: { en: "▶ Resume", es: "▶ Reanudar" },
+
+  // --- Scavenger Hunt ---
+  scavenger_hunt: { en: "Scavenger Hunt", es: "Búsqueda del Tesoro" },
+  found_it: { en: "Found it!", es: "¡Encontrado!" },
+  hint: { en: "Hint", es: "Pista" },
+  show_hint: { en: "Show Hint", es: "Ver Pista" },
+  challenges: { en: "Challenges", es: "Desafíos" },
+  score: { en: "Score", es: "Puntuación" },
+  completed: { en: "Completed", es: "Completado" },
+  points: { en: "pts", es: "pts" },
+  no_challenges: { en: "No challenges for this landmark", es: "No hay desafíos para este punto" },
+
+  // --- Photo Booth ---
+  photo_booth: { en: "Photo Booth", es: "Cabina de Fotos" },
+  capture_photo: { en: "Capture Photo", es: "Capturar Foto" },
+  frame_vintage: { en: "Vintage Postcard", es: "Postal Vintage" },
+  frame_polaroid: { en: "Polaroid", es: "Polaroid" },
+  frame_film: { en: "Film Strip", es: "Tira de Película" },
+  frame_golden: { en: "Golden Frame", es: "Marco Dorado" },
+  frame_stamp: { en: "Passport Stamp", es: "Sello de Pasaporte" },
+  frame_poster: { en: "Travel Poster", es: "Póster de Viaje" },
+
+  // --- AR Labels ---
+  ar_labels: { en: "AR Labels", es: "Etiquetas AR" },
+  enable_compass: { en: "Enable Compass", es: "Activar Brújula" },
+  compass_unavailable: { en: "Compass unavailable", es: "Brújula no disponible" },
+  distance_away: { en: "{distance} away", es: "a {distance}" },
+
+  // --- Trip Scorecard ---
+  your_trip: { en: "Your Trip", es: "Tu Viaje" },
+  landmarks_visited: { en: "Landmarks", es: "Monumentos" },
+  stories_watched: { en: "Stories", es: "Historias" },
+  heyday_photos: { en: "Heyday", es: "Apogeo" },
+  scavenger_finds: { en: "Finds", es: "Hallazgos" },
+  photos_taken: { en: "Photos", es: "Fotos" },
+  days_exploring: { en: "days", es: "días" },
+  achievement_explorer: { en: "Explorer", es: "Explorador" },
+  achievement_historian: { en: "Historian", es: "Historiador" },
+  achievement_time_traveler: { en: "Time Traveler", es: "Viajero del Tiempo" },
+  achievement_detective: { en: "Detective", es: "Detective" },
+  achievement_photographer: { en: "Photographer", es: "Fotógrafo" },
+  share_trip: { en: "Share Trip", es: "Compartir Viaje" },
+  reset_trip: { en: "Reset", es: "Reiniciar" },
+  reset_confirm: { en: "Confirm Reset", es: "Confirmar Reinicio" },
 };
 
 export function t(key: string, lang: string): string {

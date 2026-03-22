@@ -11,7 +11,7 @@ import StorySelector from "@/components/StorySelector";
 import StoryPlayer from "@/components/StoryPlayer";
 import { findNearbyLandmark, findLandmarksWithinRadius, Landmark, StoryChapter, NearbyLandmarkWithDistance } from "@/lib/landmarks";
 import WalkingTour from "@/components/WalkingTour";
-import { speakWithBrowserTTS, stopBrowserTTS } from "@/lib/browser-tts";
+import { stopBrowserTTS } from "@/lib/browser-tts";
 import { getCachedStory, cacheStory } from "@/lib/story-cache";
 import { resizeBase64ForAPI } from "@/lib/image-utils";
 import { getCachedHeyday, cacheHeyday } from "@/lib/heyday-cache";
@@ -20,16 +20,13 @@ import { t, tContent } from "@/lib/translations";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
 import { haptic } from "@/lib/haptics";
-
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1")
-    .replace(/__(.+?)__/g, "$1")
-    .replace(/_(.+?)_/g, "$1")
-    .replace(/#{1,6}\s+/g, "")
-    .replace(/`(.+?)`/g, "$1");
-}
+import { recordLandmarkVisit, recordStoryWatched, incrementStat, resetTrip, getTripStats } from "@/lib/trip-tracker";
+import ScavengerHunt from "@/components/ScavengerHunt";
+import PhotoBooth from "@/components/PhotoBooth";
+import ARLandmarkLabels from "@/components/ARLandmarkLabels";
+import TripScorecard from "@/components/TripScorecard";
+import { getChallengesForLandmark } from "@/lib/scavenger-hunt";
+import { preloadFramesForLandmark, getCachedFramesForLandmark } from "@/lib/frame-cache";
 
 function TourContent() {
   const searchParams = useSearchParams();
@@ -98,6 +95,17 @@ function TourContent() {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
+  // New features
+  const [showScavengerHunt, setShowScavengerHunt] = useState(false);
+  const [showPhotoBooth, setShowPhotoBooth] = useState(false);
+  const [showARLabels, setShowARLabels] = useState(false);
+  const [showScorecard, setShowScorecard] = useState(false);
+  const [tripLandmarkCount, setTripLandmarkCount] = useState(() => {
+    try { return getTripStats().landmarksVisited.length; } catch { return 0; }
+  });
+  const [dalleFrames, setDalleFrames] = useState<Record<string, string>>({});
+  const framePreloadKeyRef = useRef<string | null>(null);
+
   // Refresh bandwidth display
   const refreshBandwidth = useCallback(() => {
     setBandwidthTotal(getUsageSummary().total);
@@ -118,6 +126,8 @@ function TourContent() {
     setWalkingTourLandmarks(findLandmarksWithinRadius(lat, lng, 3000));
     // Track visited landmarks
     if (nearby) {
+      recordLandmarkVisit(nearby.key);
+      setTripLandmarkCount(getTripStats().landmarksVisited.length);
       setVisitedLandmarks((prev) => {
         if (prev.has(nearby.key)) return prev;
         const next = new Set(prev);
@@ -130,52 +140,10 @@ function TourContent() {
   const [initialQuerySent, setInitialQuerySent] = useState(false);
   const initialQuerySentRef = useRef(false);
 
-  // TTS helper — uses streaming chunked TTS endpoint for faster playback.
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
-  const speakText = useCallback(
-    async (text: string) => {
-      if (!ttsEnabled || typeof window === "undefined") return;
-
-      // Stop any previous browser TTS fallback
-      stopBrowserTTS();
-
-      // Stop any previous TTS audio
-      if (ttsAudioRef.current) {
-        try {
-          const oldSrc = ttsAudioRef.current.src;
-          ttsAudioRef.current.pause();
-          ttsAudioRef.current.src = "";
-          if (oldSrc.startsWith("blob:")) URL.revokeObjectURL(oldSrc);
-        } catch (e) {
-          console.warn("[TourPage] Error cleaning up previous audio:", e);
-        }
-        ttsAudioRef.current = null;
-      }
-
-      try {
-        const res = await fetch("/api/tts-stream", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, destination, langCode }),
-        });
-
-        if (!res.ok || !res.body) throw new Error(`TTS ${res.status}`);
-
-        const arrayBuffer = await res.arrayBuffer();
-        const blob = new Blob([arrayBuffer], { type: "audio/wav" });
-        const blobUrl = URL.createObjectURL(blob);
-        const audio = new Audio(blobUrl);
-        ttsAudioRef.current = audio;
-        audio.play().catch((err) =>
-          console.warn("[TourPage] Audio play blocked:", err)
-        );
-      } catch (err) {
-        console.warn("[TourPage] TTS stream failed, falling back to browser TTS:", err);
-        speakWithBrowserTTS(text, langCode);
-      }
-    },
-    [ttsEnabled, langCode, destination]
-  );
+  // Stop all speech when muted
+  useEffect(() => {
+    if (!ttsEnabled) stopBrowserTTS();
+  }, [ttsEnabled]);
 
   // Send message to commentary API
   const sendToAPI = useCallback(
@@ -228,7 +196,6 @@ function TourContent() {
           { role: "assistant", content: fullText },
         ]);
         setStreamingText("");
-        speakText(stripMarkdown(fullText));
 
         // Extract place context for dynamic story discovery
         if (fullText.length > 50) {
@@ -249,7 +216,7 @@ function TourContent() {
         setIsLoading(false);
       }
     },
-    [messages, destination, langCode, speakText]
+    [messages, destination, langCode]
   );
 
   // Audio guide — continuous play-by-play narration near landmarks.
@@ -321,6 +288,30 @@ function TourContent() {
       }
     };
   }, [audioGuideEnabled, nearbyLandmark, sendGuideCommentary]);
+
+  // Pre-generate DALL-E photo frames in background when entering a new landmark
+  useEffect(() => {
+    if (!nearbyLandmark || nearbyLandmark.key === framePreloadKeyRef.current) return;
+    framePreloadKeyRef.current = nearbyLandmark.key;
+    const key = nearbyLandmark.key;
+
+    // First load any already-cached frames immediately
+    getCachedFramesForLandmark(key).then((cached) => {
+      if (Object.keys(cached).length > 0) {
+        setDalleFrames(cached);
+      }
+    });
+
+    // Then start generating any missing frames in background
+    preloadFramesForLandmark(key).then(() => {
+      // Reload all cached frames after generation completes
+      getCachedFramesForLandmark(key).then((all) => {
+        if (Object.keys(all).length > 0) {
+          setDalleFrames(all);
+        }
+      });
+    });
+  }, [nearbyLandmark]);
 
   // If the URL provides explicit coordinates (for testing), apply them once and
   // optionally send an automatic "What am I looking at?" query so the user
@@ -435,6 +426,7 @@ function TourContent() {
       if (data.imageUrl) {
         setHeyDayImage(data.imageUrl);
         setHeyDayCaption(data.caption || null);
+        incrementStat("heydayPhotos");
 
         // Cache for known landmarks
         if (lmKey) {
@@ -505,6 +497,7 @@ function TourContent() {
             images: data.images,
           };
           cacheStory(cacheKey, story);
+          recordStoryWatched(chapter.id);
           setStoryData(story);
         } else {
           console.error("[TourPage] Story returned incomplete data:", data);
@@ -563,6 +556,30 @@ function TourContent() {
                   Tour ({walkingTourLandmarks.length})
                 </button>
               )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic("light");
+                  setShowARLabels((prev) => !prev);
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-semibold backdrop-blur-sm transition-colors ${
+                  showARLabels
+                    ? "bg-blue-500/90 text-white"
+                    : "bg-stone-800/80 text-stone-300"
+                }`}
+              >
+                {t("ar_labels", langCode)}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic("light");
+                  setShowScorecard(true);
+                }}
+                className="rounded-full bg-stone-800/80 px-3 py-1 text-xs font-semibold text-amber-400 backdrop-blur-sm"
+              >
+                {tripLandmarkCount}
+              </button>
               {bandwidthTotal && bandwidthTotal !== "0 B" && (
                 <span className="rounded-full bg-stone-800/80 px-3 py-1 text-xs text-stone-400 backdrop-blur-sm">
                   ~{bandwidthTotal}
@@ -573,14 +590,6 @@ function TourContent() {
                   e.stopPropagation();
                   // Stop all audio before navigating away
                   stopBrowserTTS();
-                  if (ttsAudioRef.current) {
-                    try {
-                      ttsAudioRef.current.pause();
-                      ttsAudioRef.current.src = "";
-                    } catch { /* ignore */ }
-                    ttsAudioRef.current = null;
-                  }
-                  window.speechSynthesis?.cancel();
                   window.location.href = "/";
                 }}
                 className="rounded-full bg-stone-800/80 px-3 py-1 text-xs text-stone-300 backdrop-blur-sm"
@@ -603,6 +612,32 @@ function TourContent() {
                 className="rounded-full bg-amber-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm disabled:opacity-50"
               >
                 {heyDayLoading ? t("generating", langCode) : t("show_in_heyday", langCode)}
+              </button>
+            )}
+
+            {nearbyLandmark && getChallengesForLandmark(nearbyLandmark.key).length > 0 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic("medium");
+                  setShowScavengerHunt(true);
+                }}
+                className="rounded-full bg-emerald-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm"
+              >
+                {t("scavenger_hunt", langCode)}
+              </button>
+            )}
+
+            {nearbyLandmark && cameraVideoRef.current && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic("medium");
+                  setShowPhotoBooth(true);
+                }}
+                className="rounded-full bg-pink-500/90 px-4 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm"
+              >
+                {t("photo_booth", langCode)}
               </button>
             )}
 
@@ -660,6 +695,18 @@ function TourContent() {
                 {t("tap_anywhere", langCode)}
               </div>
             </div>
+          )}
+
+          {/* AR Landmark Labels */}
+          {showARLabels && (
+            <ARLandmarkLabels
+              userLocation={coordsRef.current.lat !== 0 ? coordsRef.current : null}
+              landmarks={walkingTourLandmarks}
+              langCode={langCode}
+              onSelectLandmark={(key) => {
+                haptic("medium");
+              }}
+            />
           )}
 
           {/* Story loading indicator */}
@@ -765,6 +812,40 @@ function TourContent() {
             }}
           />
         </ErrorBoundary>
+      )}
+
+      {/* Scavenger Hunt */}
+      {showScavengerHunt && (
+        <ScavengerHunt
+          nearbyLandmarkKey={nearbyLandmark?.key || null}
+          langCode={langCode}
+          onClose={() => setShowScavengerHunt(false)}
+        />
+      )}
+
+      {/* Photo Booth */}
+      {showPhotoBooth && (
+        <PhotoBooth
+          videoRef={cameraVideoRef}
+          landmarkName={nearbyLandmark?.landmark.name || ""}
+          destination={destination}
+          langCode={langCode}
+          onClose={() => setShowPhotoBooth(false)}
+          dalleFrames={dalleFrames}
+        />
+      )}
+
+      {/* Trip Scorecard */}
+      {showScorecard && (
+        <TripScorecard
+          langCode={langCode}
+          onClose={() => setShowScorecard(false)}
+          onReset={() => {
+            resetTrip();
+            setTripLandmarkCount(0);
+            setShowScorecard(false);
+          }}
+        />
       )}
     </div>
   );

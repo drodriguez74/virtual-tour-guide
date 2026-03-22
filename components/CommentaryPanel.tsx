@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { t } from "@/lib/translations";
 import { haptic } from "@/lib/haptics";
+import { speakWithBrowserTTS, stopBrowserTTS, pauseBrowserTTS, resumeBrowserTTS } from "@/lib/browser-tts";
 
 export interface Message {
   role: "user" | "assistant";
@@ -37,6 +38,7 @@ export default function CommentaryPanel({
   langCode,
 }: CommentaryPanelProps) {
   const [input, setInput] = useState("");
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -67,6 +69,48 @@ export default function CommentaryPanel({
     onSendMessage(input.trim());
     setInput("");
   };
+
+  const [isPaused, setIsPaused] = useState(false);
+  // Track the paused message index separately so state is unambiguous
+  const pausedIndexRef = useRef<number | null>(null);
+
+  const handleReadAloud = useCallback((text: string, index: number) => {
+    haptic("light");
+
+    if (speakingIndex === index) {
+      // Same message — toggle between pause and resume
+      if (isPaused) {
+        resumeBrowserTTS();
+        setIsPaused(false);
+        pausedIndexRef.current = null;
+      } else {
+        pauseBrowserTTS();
+        setIsPaused(true);
+        pausedIndexRef.current = index;
+      }
+      return;
+    }
+
+    // Different message — cancel any playing/paused speech, start fresh
+    stopBrowserTTS();
+    setIsPaused(false);
+    pausedIndexRef.current = null;
+
+    const utterance = speakWithBrowserTTS(text, langCode);
+    if (utterance) {
+      setSpeakingIndex(index);
+      utterance.onend = () => {
+        setSpeakingIndex(null);
+        setIsPaused(false);
+        pausedIndexRef.current = null;
+      };
+      utterance.onerror = () => {
+        setSpeakingIndex(null);
+        setIsPaused(false);
+        pausedIndexRef.current = null;
+      };
+    }
+  }, [speakingIndex, isPaused, langCode]);
 
   const quickActions = [
     { key: "tell_surprising", send: t("tell_surprising", "en") },
@@ -136,6 +180,20 @@ export default function CommentaryPanel({
               }`}
             >
               <p className="whitespace-pre-wrap">{msg.content}</p>
+              {msg.role === "assistant" && (
+                <button
+                  onClick={() => handleReadAloud(msg.content, i)}
+                  className={`mt-2 rounded-full px-2.5 py-0.5 text-xs transition-colors ${
+                    speakingIndex === i
+                      ? (isPaused ? "bg-amber-500/20 text-amber-400" : "bg-red-500/20 text-red-400")
+                      : "bg-stone-700 text-stone-400 hover:text-amber-400"
+                  }`}
+                >
+                  {speakingIndex === i
+                    ? (isPaused ? t("resume_reading", langCode) : t("pause_reading", langCode))
+                    : t("read_aloud", langCode)}
+                </button>
+              )}
             </div>
           </div>
         ))}

@@ -9,6 +9,28 @@ export function stopBrowserTTS(): void {
   }
 }
 
+/** Pause in-progress browser speech synthesis (can be resumed). */
+export function pauseBrowserTTS(): void {
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.pause();
+  }
+}
+
+/** Resume previously paused browser speech synthesis. */
+export function resumeBrowserTTS(): void {
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    window.speechSynthesis.resume();
+  }
+}
+
+/** Check if speech synthesis is currently paused. */
+export function isBrowserTTSPaused(): boolean {
+  if (typeof window !== "undefined" && window.speechSynthesis) {
+    return window.speechSynthesis.paused;
+  }
+  return false;
+}
+
 /** Map a short lang code to a BCP-47 tag for SpeechSynthesis. */
 function toBcp47(langCode: string): string {
   const map: Record<string, string> = {
