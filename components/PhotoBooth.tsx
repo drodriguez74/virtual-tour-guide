@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
 import { incrementStat } from "@/lib/trip-tracker";
 import { t } from "@/lib/translations";
 import { haptic } from "@/lib/haptics";
@@ -8,11 +8,9 @@ import { haptic } from "@/lib/haptics";
 interface PhotoBoothProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   landmarkName: string;
-  destination: string;
+  landmarkKey: string | null;
   langCode: string;
   onClose: () => void;
-  /** Pre-loaded DALL-E frame images keyed by frame style */
-  dalleFrames?: Record<string, string>;
 }
 
 type FrameStyle = "vintage" | "polaroid" | "film" | "golden" | "stamp" | "poster";
@@ -20,257 +18,345 @@ type FrameStyle = "vintage" | "polaroid" | "film" | "golden" | "stamp" | "poster
 interface FrameDef {
   key: FrameStyle;
   labelKey: string;
-  fallbackDraw: (ctx: CanvasRenderingContext2D, w: number, h: number, landmarkName: string, destination: string) => void;
-  filter?: string;
-}
-
-function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, font: string, color: string, align: CanvasTextAlign = "center") {
-  ctx.save();
-  ctx.font = font;
-  ctx.fillStyle = color;
-  ctx.textAlign = align;
-  ctx.fillText(text, x, y);
-  ctx.restore();
+  fallbackDraw: (ctx: CanvasRenderingContext2D, w: number, h: number, landmark: string) => void;
 }
 
 const FRAMES: FrameDef[] = [
   {
     key: "vintage",
     labelKey: "frame_vintage",
-    filter: "sepia(0.6) contrast(1.1)",
-    fallbackDraw: (ctx, w, h, _lm, destination) => {
-      const border = Math.min(w, h) * 0.05;
-      ctx.strokeStyle = "#c4956a";
-      ctx.lineWidth = border;
-      ctx.strokeRect(border / 2, border / 2, w - border, h - border);
-      ctx.strokeStyle = "#a0764e";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(border + 4, border + 4, w - border * 2 - 8, h - border * 2 - 8);
-      const bannerH = h * 0.1;
-      ctx.fillStyle = "rgba(139, 90, 43, 0.85)";
-      ctx.fillRect(border, h - border - bannerH, w - border * 2, bannerH);
-      drawText(ctx, `Greetings from ${destination.charAt(0).toUpperCase() + destination.slice(1)}!`, w / 2, h - border - bannerH / 2 + 6, `bold ${bannerH * 0.45}px serif`, "#f5e6c8");
+    fallbackDraw(ctx, w, h, landmark) {
+      // Sepia-tinted border
+      ctx.save();
+      ctx.strokeStyle = "#8B7355";
+      ctx.lineWidth = Math.max(12, w * 0.025);
+      ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, w - ctx.lineWidth, h - ctx.lineWidth);
+      // Inner stroke
+      ctx.strokeStyle = "#C4A775";
+      ctx.lineWidth = Math.max(4, w * 0.008);
+      const inset = Math.max(18, w * 0.035);
+      ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+      // Banner at bottom
+      const bannerH = Math.max(40, h * 0.08);
+      ctx.fillStyle = "rgba(139,115,85,0.85)";
+      ctx.fillRect(0, h - bannerH, w, bannerH);
+      ctx.fillStyle = "#FFF8E7";
+      ctx.font = `bold ${Math.max(14, bannerH * 0.45)}px serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`Greetings from ${landmark}`, w / 2, h - bannerH / 2);
+      ctx.restore();
     },
   },
   {
     key: "polaroid",
     labelKey: "frame_polaroid",
-    fallbackDraw: (ctx, w, h, landmarkName) => {
-      const side = w * 0.04;
-      const top = h * 0.04;
-      const bottom = h * 0.15;
-      ctx.fillStyle = "#f5f5f0";
-      ctx.fillRect(0, 0, w, top);
-      ctx.fillRect(0, 0, side, h);
-      ctx.fillRect(w - side, 0, side, h);
-      ctx.fillRect(0, h - bottom, w, bottom);
-      drawText(ctx, landmarkName, w / 2, h - bottom / 2 + 8, `italic ${bottom * 0.3}px 'Georgia', serif`, "#555");
+    fallbackDraw(ctx, w, h, landmark) {
+      const border = Math.max(12, w * 0.03);
+      const bottomBorder = Math.max(50, h * 0.12);
+      // White polaroid frame
+      ctx.save();
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, w, border); // top
+      ctx.fillRect(0, 0, border, h); // left
+      ctx.fillRect(w - border, 0, border, h); // right
+      ctx.fillRect(0, h - bottomBorder, w, bottomBorder); // bottom
+      // Shadow
+      ctx.shadowColor = "rgba(0,0,0,0.15)";
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = "#E5E5E5";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(border, border, w - border * 2, h - border - bottomBorder);
+      ctx.shadowBlur = 0;
+      // Handwritten landmark name
+      ctx.fillStyle = "#333";
+      ctx.font = `italic ${Math.max(14, bottomBorder * 0.35)}px Georgia, serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(landmark, w / 2, h - bottomBorder / 2);
+      ctx.restore();
     },
   },
   {
     key: "film",
     labelKey: "frame_film",
-    filter: "saturate(0.7) contrast(1.1)",
-    fallbackDraw: (ctx, w, h) => {
-      const stripW = w * 0.06;
-      ctx.fillStyle = "#1a1a1a";
+    fallbackDraw(ctx, w, h) {
+      const stripW = Math.max(24, w * 0.055);
+      const holeR = Math.max(4, stripW * 0.2);
+      const holeSpacing = Math.max(16, h * 0.04);
+      ctx.save();
+      // Black strips
+      ctx.fillStyle = "#111";
       ctx.fillRect(0, 0, stripW, h);
       ctx.fillRect(w - stripW, 0, stripW, h);
-      const holeW = stripW * 0.5;
-      const holeH = stripW * 0.35;
-      const spacing = holeH * 3;
+      // Sprocket holes
       ctx.fillStyle = "#333";
-      for (let y = spacing; y < h - spacing; y += spacing) {
+      for (let y = holeSpacing; y < h; y += holeSpacing) {
+        // Left strip
         ctx.beginPath();
-        ctx.roundRect((stripW - holeW) / 2, y, holeW, holeH, 2);
+        ctx.roundRect(stripW * 0.25, y - holeR, stripW * 0.5, holeR * 2, holeR * 0.4);
         ctx.fill();
+        // Right strip
         ctx.beginPath();
-        ctx.roundRect(w - stripW + (stripW - holeW) / 2, y, holeW, holeH, 2);
+        ctx.roundRect(w - stripW * 0.75, y - holeR, stripW * 0.5, holeR * 2, holeR * 0.4);
         ctx.fill();
       }
+      ctx.restore();
     },
   },
   {
     key: "golden",
     labelKey: "frame_golden",
-    fallbackDraw: (ctx, w, h) => {
-      const border = Math.min(w, h) * 0.05;
+    fallbackDraw(ctx, w, h) {
+      const borderW = Math.max(10, w * 0.025);
+      ctx.save();
+      // Gold gradient border
       const grad = ctx.createLinearGradient(0, 0, w, h);
-      grad.addColorStop(0, "#d4a843");
-      grad.addColorStop(0.3, "#f5d782");
-      grad.addColorStop(0.5, "#d4a843");
-      grad.addColorStop(0.7, "#f5d782");
-      grad.addColorStop(1, "#b8902e");
+      grad.addColorStop(0, "#D4AF37");
+      grad.addColorStop(0.3, "#F5E6A3");
+      grad.addColorStop(0.5, "#D4AF37");
+      grad.addColorStop(0.7, "#B8962E");
+      grad.addColorStop(1, "#D4AF37");
       ctx.strokeStyle = grad;
-      ctx.lineWidth = border;
-      ctx.strokeRect(border / 2, border / 2, w - border, h - border);
-      ctx.strokeStyle = "#b8902e";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(border + 3, border + 3, w - border * 2 - 6, h - border * 2 - 6);
+      ctx.lineWidth = borderW;
+      ctx.strokeRect(borderW / 2, borderW / 2, w - borderW, h - borderW);
+      // Inner stroke
+      ctx.strokeStyle = "rgba(212,175,55,0.5)";
+      ctx.lineWidth = Math.max(2, borderW * 0.3);
+      const inset = borderW + 4;
+      ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+      ctx.restore();
     },
   },
   {
     key: "stamp",
     labelKey: "frame_stamp",
-    fallbackDraw: (ctx, w, h, landmarkName) => {
+    fallbackDraw(ctx, w, h, landmark) {
       const cx = w / 2;
       const cy = h / 2;
-      const r = Math.min(w, h) * 0.3;
+      const r = Math.min(w, h) * 0.38;
       ctx.save();
-      ctx.strokeStyle = "rgba(180, 40, 40, 0.7)";
-      ctx.lineWidth = 3;
-      ctx.setLineDash([8, 5]);
+      // Dashed circle
+      ctx.strokeStyle = "rgba(200,30,30,0.7)";
+      ctx.lineWidth = Math.max(3, r * 0.04);
+      ctx.setLineDash([r * 0.06, r * 0.04]);
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.lineWidth = 2;
+      // Landmark name curved at top
+      ctx.fillStyle = "rgba(200,30,30,0.75)";
+      ctx.font = `bold ${Math.max(12, r * 0.14)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(landmark.toUpperCase(), cx, cy - r * 0.5);
+      // Date at bottom
+      const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+      ctx.font = `${Math.max(10, r * 0.1)}px sans-serif`;
+      ctx.fillText(dateStr, cx, cy + r * 0.5);
+      // Star in center
+      const starR = r * 0.12;
       ctx.beginPath();
-      ctx.arc(cx, cy, r * 0.85, 0, Math.PI * 2);
-      ctx.stroke();
-      drawText(ctx, landmarkName.toUpperCase(), cx, cy - r * 0.3, `bold ${r * 0.13}px sans-serif`, "rgba(180, 40, 40, 0.8)");
-      const date = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-      drawText(ctx, date, cx, cy + 4, `${r * 0.12}px sans-serif`, "rgba(180, 40, 40, 0.7)");
-      drawText(ctx, "★", cx, cy + r * 0.3, `${r * 0.2}px sans-serif`, "rgba(180, 40, 40, 0.6)");
+      for (let i = 0; i < 5; i++) {
+        const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+        const method = i === 0 ? "moveTo" : "lineTo";
+        ctx[method](cx + starR * Math.cos(angle), cy + starR * Math.sin(angle));
+      }
+      ctx.closePath();
+      ctx.fill();
       ctx.restore();
     },
   },
   {
     key: "poster",
     labelKey: "frame_poster",
-    fallbackDraw: (ctx, w, h, landmarkName) => {
-      const border = Math.min(w, h) * 0.06;
-      ctx.fillStyle = "#1e3a5f";
-      ctx.fillRect(0, 0, w, border);
-      ctx.fillRect(0, h - border * 2.5, w, border * 2.5);
-      ctx.fillRect(0, 0, border, h);
-      ctx.fillRect(w - border, 0, border, h);
-      drawText(ctx, "VISIT", w / 2, h - border * 1.8, `bold ${border * 0.8}px sans-serif`, "#f5d782");
-      drawText(ctx, landmarkName.toUpperCase(), w / 2, h - border * 0.7, `bold ${border * 0.6}px sans-serif`, "#ffffff");
+    fallbackDraw(ctx, w, h, landmark) {
+      const borderW = Math.max(16, w * 0.04);
+      ctx.save();
+      // Navy border
+      ctx.fillStyle = "#1B2A4A";
+      ctx.fillRect(0, 0, w, borderW); // top
+      ctx.fillRect(0, 0, borderW, h); // left
+      ctx.fillRect(w - borderW, 0, borderW, h); // right
+      ctx.fillRect(0, h - borderW * 2.5, w, borderW * 2.5); // bottom (wider)
+      // "VISIT" text
+      ctx.fillStyle = "#F5E6A3";
+      ctx.font = `${Math.max(10, borderW * 0.6)}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const bottomCenter = h - borderW * 1.25;
+      ctx.fillText("VISIT", w / 2, bottomCenter - borderW * 0.5);
+      // Landmark name in caps
+      ctx.font = `bold ${Math.max(14, borderW * 0.9)}px sans-serif`;
+      ctx.fillText(landmark.toUpperCase(), w / 2, bottomCenter + borderW * 0.3);
+      ctx.restore();
     },
   },
 ];
 
-export default function PhotoBooth({ videoRef, landmarkName, destination, langCode, onClose, dalleFrames }: PhotoBoothProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number>(0);
-  const [selectedFrame, setSelectedFrame] = useState<FrameStyle>("vintage");
-  const [capturing, setCapturing] = useState(false);
-  // Track loaded DALL-E Image objects for the current session
-  const [dalleImages, setDalleImages] = useState<Record<string, HTMLImageElement>>({});
-
-  const currentFrame = FRAMES.find((f) => f.key === selectedFrame) || FRAMES[0];
-  const hasDalleFrame = !!dalleImages[selectedFrame];
-
-  // Pre-load DALL-E frame images into HTMLImageElement objects
-  useEffect(() => {
-    if (!dalleFrames) return;
-    const loaded: Record<string, HTMLImageElement> = {};
-    let cancelled = false;
-
-    const entries = Object.entries(dalleFrames);
-    let remaining = entries.length;
-
-    entries.forEach(([style, dataUrl]) => {
-      const img = new Image();
-      img.onload = () => {
-        if (cancelled) return;
-        loaded[style] = img;
-        remaining--;
-        if (remaining <= 0) {
-          setDalleImages({ ...loaded });
-        }
-      };
-      img.onerror = () => {
-        remaining--;
-        if (!cancelled && remaining <= 0) {
-          setDalleImages({ ...loaded });
-        }
-      };
-      img.src = dataUrl;
-    });
-
-    // If individual images load before all are done, update progressively
-    const progressInterval = setInterval(() => {
-      if (!cancelled && Object.keys(loaded).length > Object.keys(dalleImages).length) {
-        setDalleImages({ ...loaded });
-      }
-    }, 500);
-
-    return () => {
-      cancelled = true;
-      clearInterval(progressInterval);
+/**
+ * Resize a data URL image to a max dimension and return as raw base64.
+ * Keeps the image large enough for Gemini to produce a good edit.
+ */
+function resizeForFrame(dataUrl: string, maxDim = 1024, quality = 0.85): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(dataUrl); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", quality));
     };
-  }, [dalleFrames]); // eslint-disable-line react-hooks/exhaustive-deps
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
 
-  const drawFrame = useCallback(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < 2) {
-      rafRef.current = requestAnimationFrame(drawFrame);
-      return;
+/**
+ * Render a static canvas-drawn frame over the captured photo.
+ * Used as a fallback when the Gemini API is unavailable.
+ */
+function renderFallbackFrame(photoDataUrl: string, frameKey: FrameStyle, landmark: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(photoDataUrl); return; }
+      ctx.drawImage(img, 0, 0);
+      const frame = FRAMES.find((f) => f.key === frameKey);
+      if (frame) frame.fallbackDraw(ctx, canvas.width, canvas.height, landmark);
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    img.onerror = () => resolve(photoDataUrl);
+    img.src = photoDataUrl;
+  });
+}
+
+type Mode = "camera" | "edit";
+
+export default function PhotoBooth({ videoRef, landmarkName, landmarkKey, langCode, onClose }: PhotoBoothProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [mode, setMode] = useState<Mode>("camera");
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [displayImage, setDisplayImage] = useState<string | null>(null);
+  const [selectedFrame, setSelectedFrame] = useState<FrameStyle | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [frameCache, setFrameCache] = useState<Record<string, string>>({});
+
+  // Attach the parent camera stream to our local video element.
+  // Runs on mount and whenever mode changes (the video element stays mounted
+  // but we re-check in case srcObject was lost).
+  useEffect(() => {
+    if (mode !== "camera") return;
+    const parentVideo = videoRef.current;
+    const localVideo = localVideoRef.current;
+    if (!parentVideo || !localVideo) return;
+
+    const stream = parentVideo.srcObject as MediaStream | null;
+    if (stream && localVideo.srcObject !== stream) {
+      localVideo.srcObject = stream;
     }
+  }, [mode, videoRef]);
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  const handleCapture = useCallback(() => {
+    const video = localVideoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) return;
+
+    haptic("medium");
 
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
-    const w = canvas.width;
-    const h = canvas.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    // Apply filter if frame has one (only for fallback canvas frames)
-    const dalleImg = dalleImages[currentFrame.key];
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
 
-    if (!dalleImg) {
-      ctx.filter = currentFrame.filter || "none";
-    }
-    ctx.drawImage(video, 0, 0, w, h);
-    ctx.filter = "none";
+    setCapturedPhoto(dataUrl);
+    setDisplayImage(dataUrl);
+    setSelectedFrame(null);
+    setMode("edit");
+  }, []);
 
-    if (dalleImg) {
-      // Draw the DALL-E frame overlay on top of the camera feed
-      // Use globalCompositeOperation to blend nicely
-      ctx.globalAlpha = 0.85;
-      ctx.drawImage(dalleImg, 0, 0, w, h);
-      ctx.globalAlpha = 1.0;
-    } else {
-      // Fallback to simple canvas drawing
-      currentFrame.fallbackDraw(ctx, w, h, landmarkName, destination);
-    }
+  const handleSelectFrame = useCallback(
+    async (frameKey: FrameStyle) => {
+      if (!capturedPhoto || loading) return;
 
-    rafRef.current = requestAnimationFrame(drawFrame);
-  }, [videoRef, currentFrame, landmarkName, destination, dalleImages]);
+      haptic("light");
+      setSelectedFrame(frameKey);
 
-  useEffect(() => {
-    rafRef.current = requestAnimationFrame(drawFrame);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [drawFrame]);
+      // Check cache first
+      if (frameCache[frameKey]) {
+        setDisplayImage(frameCache[frameKey]);
+        return;
+      }
 
-  const handleCapture = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || capturing) return;
+      setLoading(true);
+      try {
+        // Resize before sending to keep the request body manageable
+        const resized = await resizeForFrame(capturedPhoto);
 
-    setCapturing(true);
+        const response = await fetch("/api/photo-frames", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageBase64: resized,
+            frameStyle: frameKey,
+            landmarkKey,
+          }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || `Error ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.imageDataUrl) {
+          setFrameCache((prev) => ({ ...prev, [frameKey]: data.imageDataUrl }));
+          setDisplayImage(data.imageDataUrl);
+        }
+      } catch (err: any) {
+        console.error("[PhotoBooth] Frame API failed, using static fallback:", err);
+        const fallback = await renderFallbackFrame(capturedPhoto, frameKey, landmarkName);
+        setFrameCache((prev) => ({ ...prev, [frameKey]: fallback }));
+        setDisplayImage(fallback);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [capturedPhoto, loading, frameCache, landmarkKey, landmarkName]
+  );
+
+  const handleDownload = useCallback(() => {
+    if (!displayImage) return;
     haptic("medium");
 
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `photo-${landmarkName.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.jpg`;
-          a.click();
-          URL.revokeObjectURL(url);
-          incrementStat("photosTaken");
-        }
-        setCapturing(false);
-      },
-      "image/jpeg",
-      0.9
-    );
-  }, [capturing, landmarkName]);
+    const a = document.createElement("a");
+    a.href = displayImage;
+    a.download = `photo-${landmarkName.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}.jpg`;
+    a.click();
+    incrementStat("photosTaken");
+  }, [displayImage, landmarkName]);
+
+  const handleRetake = useCallback(() => {
+    setCapturedPhoto(null);
+    setDisplayImage(null);
+    setSelectedFrame(null);
+    setFrameCache({});
+    setMode("camera");
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black">
@@ -282,67 +368,113 @@ export default function PhotoBooth({ videoRef, landmarkName, destination, langCo
         >
           {t("close", langCode)}
         </button>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">
-            {t(currentFrame.labelKey, langCode)}
+        {mode === "edit" && landmarkName && (
+          <span className="text-sm font-semibold text-white truncate max-w-[200px]">
+            {landmarkName}
           </span>
-          {hasDalleFrame && (
-            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] text-amber-400">
-              AI
-            </span>
-          )}
-        </div>
+        )}
         <div className="w-12" />
       </div>
 
-      {/* Live preview */}
-      <div className="flex-1 flex items-center justify-center min-h-0 px-2">
-        <canvas
-          ref={canvasRef}
+      {/*
+        Video is always mounted so the stream stays attached.
+        Hidden via CSS when in edit mode.
+      */}
+      <div className={`flex-1 flex items-center justify-center min-h-0 px-2 ${mode !== "camera" ? "hidden" : ""}`}>
+        <video
+          ref={localVideoRef}
+          autoPlay
+          playsInline
+          muted
           className="max-h-full max-w-full rounded-lg object-contain"
         />
       </div>
 
-      {/* Frame selector */}
-      <div className="flex-shrink-0 px-4 py-3">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {FRAMES.map((frame) => {
-            const hasAI = !!dalleImages[frame.key];
-            return (
-              <button
-                key={frame.key}
-                onClick={() => {
-                  haptic("light");
-                  setSelectedFrame(frame.key);
-                }}
-                className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                  selectedFrame === frame.key
-                    ? "bg-amber-500 text-white"
-                    : "bg-stone-800 text-stone-300"
-                }`}
-              >
-                {t(frame.labelKey, langCode)}
-                {hasAI && (
-                  <span className={`h-1.5 w-1.5 rounded-full ${
-                    selectedFrame === frame.key ? "bg-white" : "bg-amber-400"
-                  }`} />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      {mode === "camera" ? (
+        <>
+          {/* Hint text */}
+          <div className="flex-shrink-0 text-center py-2">
+            <span className="text-sm text-stone-400">
+              {t("tap_to_capture", langCode)}
+            </span>
+          </div>
 
-      {/* Capture button */}
-      <div className="flex-shrink-0 flex justify-center pb-8 pt-2">
-        <button
-          onClick={handleCapture}
-          disabled={capturing}
-          className="h-16 w-16 rounded-full border-4 border-white bg-white/20 transition-transform active:scale-90 disabled:opacity-50"
-        >
-          <div className="mx-auto h-12 w-12 rounded-full bg-white" />
-        </button>
-      </div>
+          {/* Capture button */}
+          <div className="flex-shrink-0 flex justify-center pb-8 pt-2">
+            <button
+              onClick={handleCapture}
+              className="h-16 w-16 rounded-full border-4 border-white bg-white/20 transition-transform active:scale-90"
+            >
+              <div className="mx-auto h-12 w-12 rounded-full bg-white" />
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Captured / framed photo display */}
+          <div className="flex-1 flex items-center justify-center min-h-0 px-2 relative">
+            {displayImage && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={displayImage}
+                alt="Captured photo"
+                className="max-h-full max-w-full rounded-lg object-contain"
+              />
+            )}
+            {loading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                <div className="text-center">
+                  <div className="mb-2 h-8 w-8 animate-spin rounded-full border-3 border-amber-400 border-t-transparent mx-auto" />
+                  <span className="text-sm text-white">{t("applying_frame", langCode)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Frame style selector */}
+          <div className="flex-shrink-0 px-4 py-2">
+            <p className="text-xs text-stone-500 mb-2 text-center">
+              {t("choose_frame", langCode)}
+            </p>
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {FRAMES.map((frame) => (
+                <button
+                  key={frame.key}
+                  onClick={() => handleSelectFrame(frame.key)}
+                  disabled={loading}
+                  className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                    selectedFrame === frame.key
+                      ? "bg-amber-500 text-white"
+                      : "bg-stone-800 text-stone-300"
+                  } disabled:opacity-50`}
+                >
+                  {t(frame.labelKey, langCode)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex-shrink-0 flex justify-center gap-3 pb-8 pt-2 px-4">
+            <button
+              onClick={handleRetake}
+              className="rounded-full bg-stone-700 px-5 py-2.5 text-sm font-semibold text-white"
+            >
+              {t("retake", langCode)}
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={!displayImage}
+              className="rounded-full bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {t("download_photo", langCode)}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Hidden canvas for capture */}
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   );
 }

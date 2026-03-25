@@ -78,6 +78,7 @@ const TIER_LIMITS: Record<string, number> = {
   "/api/tts-stream": 30,
   "/api/tts": 30,
   "/api/geocode": 20,
+  "/api/photo-frames": 10,
 };
 
 function getLimit(pathname: string): number | null {

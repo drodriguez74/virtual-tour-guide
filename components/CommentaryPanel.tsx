@@ -113,9 +113,9 @@ export default function CommentaryPanel({
   }, [speakingIndex, isPaused, langCode]);
 
   const quickActions = [
-    { key: "tell_surprising", send: t("tell_surprising", "en") },
-    { key: "what_look_for", send: t("what_look_for", "en") },
-    { key: "hidden_details", send: t("hidden_details", "en") },
+    { key: "tell_surprising", send: t("tell_surprising", langCode) },
+    { key: "what_look_for", send: t("what_look_for", langCode) },
+    { key: "hidden_details", send: t("hidden_details", langCode) },
   ];
 
   return (

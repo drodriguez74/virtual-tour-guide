@@ -1,84 +1,194 @@
-import OpenAI from "openai";
 import { LANDMARK_STORIES } from "@/lib/landmarks";
 import { serverError } from "@/lib/api-utils";
 import { apiLog } from "@/lib/api-logger";
 
 export const maxDuration = 60;
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+interface LandmarkContext {
+  name: string;
+  era: string;
+  style: string;
+  materials: string;
+  palette: string;
+  features: string[];
+  sceneTokens: string[];
+}
 
-/**
- * Frame style definitions with DALL-E prompt templates.
- * Each generates a decorative frame/border overlay image themed to a landmark.
- */
-const FRAME_PROMPTS: Record<string, (landmarkName: string, destination: string) => string> = {
-  vintage: (landmarkName, destination) =>
-    `A vintage Italian postcard border design, ornate sepia-toned decorative frame with "Greetings from ${destination}" in elegant hand-lettered script at the bottom. Aged paper texture, postal stamp in corner with Italian flag colors, postmark marks. The CENTER must be completely empty/transparent — just the decorative border and text around the edges. Art nouveau style flourishes. Top-down flat design, no perspective.`,
+function getLandmarkContext(landmarkKey: string | null): LandmarkContext {
+  const lm = landmarkKey ? LANDMARK_STORIES[landmarkKey] : null;
+  const meta = lm?.heyday;
+  return {
+    name: lm?.name || "Italy",
+    era: meta?.target_era || "ancient Rome",
+    style: meta?.architectural_style || "classical Italian",
+    materials: meta?.materials || "marble, travertine, and stone",
+    palette: meta?.color_palette || "warm Mediterranean stone, terracotta, gold accents",
+    features: meta?.key_features || ["classical columns", "arched doorways"],
+    sceneTokens: meta?.scene_tokens || ["Italian piazza", "cypress trees"],
+  };
+}
 
-  polaroid: (landmarkName) =>
-    `A stylized Polaroid photo frame border design inspired by ${landmarkName}. Thick white border on all sides with extra space at the bottom. The bottom area has a subtle hand-drawn sketch of ${landmarkName} in light pencil. Slight shadow effect. The CENTER area must be completely empty — only the white frame border and bottom sketch area. Clean, minimal, flat design.`,
+function buildFramePrompt(frameStyle: string, ctx: LandmarkContext): string {
+  const { name, era, style, materials, features, sceneTokens } = ctx;
 
-  film: (landmarkName) =>
-    `A cinematic 35mm film strip border design. Black film strip edges with authentic sprocket holes running along left and right sides. Slight film grain texture on the border. Small "KODAK ITALIA" text along the edge. Frame counter showing "24A". The CENTER must be completely empty — only the film strip border elements around the edges. Flat graphic design, top-down.`,
+  const prompts: Record<string, string> = {
+    vintage:
+      `Transform this photo into a vintage Italian postcard from ${era}. ` +
+      `Add an aged sepia-toned decorative border with hand-illustrated vignettes of ${features.slice(0, 2).join(" and ")}. ` +
+      `Add 'Saluti da ${name}' in ornate calligraphy at the bottom. ` +
+      `Include a small Italian postal stamp in the corner.`,
 
-  golden: (landmarkName) =>
-    `An ornate Renaissance-era golden picture frame border inspired by the art frames in Italian galleries near ${landmarkName}. Elaborate carved gilded wood with baroque scrollwork, acanthus leaf corners, and shell motifs. Rich gold leaf texture with aged patina. The CENTER must be completely empty — only the decorative golden frame border. Flat top-down view, museum-quality detail.`,
+    polaroid:
+      `Place this photo inside a realistic Polaroid instant photo frame. ` +
+      `Thick white border, extra wide at the bottom with '${name}' in handwritten pen. ` +
+      `Slightly yellowed edges.`,
 
-  stamp: (landmarkName) =>
-    `A vintage Italian passport stamp overlay design for ${landmarkName}. Circular red ink stamp with the landmark name in bold capitals curved along the top, today's date at center, "REPUBBLICA ITALIANA" curved along bottom, small eagle emblem, decorative star. Also include a rectangular entry/exit stamp nearby. Transparent background with only the stamp ink marks visible. Flat graphic design, authentic passport stamp aesthetic.`,
+    film:
+      `Present this photo as a frame from a vintage 35mm film strip. ` +
+      `Black film edges with sprocket holes on both sides. ` +
+      `'CINECITTÀ ITALIA' text along the film rebate.`,
 
-  poster: (landmarkName, destination) =>
-    `A retro 1950s Italian travel poster border design advertising ${landmarkName}. Bold art deco frame in deep navy blue and gold. "VISIT" in large retro sans-serif at top, "${landmarkName.toUpperCase()}" in bold at bottom. Small illustrated vignettes of Italian motifs (olive branches, wine, vespa) in the corners. The CENTER must be completely empty — only the decorative poster border and text. Flat vintage illustration style, ENIT tourism poster aesthetic.`,
-};
+    golden:
+      `Place this photo inside an ornate Italian Renaissance gilded picture frame inspired by ${name}. ` +
+      `Elaborately carved golden wood with baroque scrollwork. ` +
+      `Materials echoing ${materials}.`,
+
+    stamp:
+      `Overlay this photo with a vintage Italian passport stamp commemorating ${name}. ` +
+      `Circular red ink stamp with '${name}' curved on top, '${era}' at center, 'ITALIA' on bottom. ` +
+      `Add a rectangular blue 'INGRESSO' stamp.`,
+
+    poster:
+      `Transform this photo into a retro 1950s Italian tourism poster celebrating ${name}. ` +
+      `Bold art deco border in navy and gold. 'VISIT' at top, '${name}' in bold capitals at bottom. ` +
+      `Corner vignettes of ${sceneTokens.slice(0, 2).join(", ")}.`,
+  };
+
+  return prompts[frameStyle] || prompts.vintage;
+}
+
+const VALID_STYLES = ["vintage", "polaroid", "film", "golden", "stamp", "poster"];
+
+const GEMINI_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent";
 
 export async function POST(req: Request) {
   const log = apiLog("photo-frames");
   try {
-    const { landmarkKey, frameStyle } = await req.json();
+    const { imageBase64, frameStyle, landmarkKey } = await req.json();
 
-    if (!frameStyle || !FRAME_PROMPTS[frameStyle]) {
+    if (!frameStyle || !VALID_STYLES.includes(frameStyle)) {
       return Response.json({ error: "Invalid frame style" }, { status: 400 });
     }
 
-    const landmark = landmarkKey ? LANDMARK_STORIES[landmarkKey] : null;
-    const landmarkName = landmark?.name || "Italy";
-    const destination = "Italy";
+    if (!imageBase64) {
+      return Response.json({ error: "Image is required" }, { status: 400 });
+    }
 
-    const prompt = FRAME_PROMPTS[frameStyle](landmarkName, destination);
+    const ctx = getLandmarkContext(landmarkKey);
+    const prompt = buildFramePrompt(frameStyle, ctx);
 
-    let imageUrl: string | undefined;
-    try {
-      const response = await openai.images.generate({
-        model: "dall-e-3",
-        prompt: prompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "standard",
-      });
-      imageUrl = response.data?.[0]?.url;
-    } catch (err: any) {
-      if (err?.code === "content_policy_violation") {
-        // Fallback to a generic decorative frame
-        const fallbackResponse = await openai.images.generate({
-          model: "dall-e-3",
-          prompt: `A decorative ${frameStyle} style photo frame border design. Ornate and beautiful. The CENTER must be completely empty — only the decorative border around the edges. Flat top-down graphic design.`,
-          n: 1,
-          size: "1024x1024",
-          quality: "standard",
+    // Strip data URL prefix if present
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const mimeType = imageBase64.startsWith("data:image/png") ? "image/png" : "image/jpeg";
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return Response.json({ error: "Gemini API key not configured" }, { status: 500 });
+    }
+
+    const body = {
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: base64Data,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ["IMAGE"],
+      },
+    };
+
+    let geminiResponse = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    // Only retry with a generic fallback prompt on content-related errors (400).
+    // Don't retry on rate limits (429) or server errors (5xx) — it just wastes quota.
+    if (!geminiResponse.ok) {
+      if (geminiResponse.status === 429) {
+        log.error(`Gemini rate limited: ${geminiResponse.status}`);
+        return Response.json({ error: "Rate limited — please try again shortly" }, { status: 429 });
+      }
+
+      if (geminiResponse.status === 400) {
+        const fallbackBody = {
+          contents: [
+            {
+              parts: [
+                { text: `Apply a beautiful decorative ${frameStyle} style photo frame to this image.` },
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseModalities: ["IMAGE"],
+          },
+        };
+
+        geminiResponse = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fallbackBody),
         });
-        imageUrl = fallbackResponse.data?.[0]?.url;
-      } else {
-        throw err;
       }
     }
 
-    if (!imageUrl) {
-      return Response.json({ error: "No image generated" }, { status: 500 });
+    if (!geminiResponse.ok) {
+      const errText = await geminiResponse.text();
+      log.error(`Gemini API error: ${geminiResponse.status} ${errText}`);
+      return Response.json({ error: "Image generation failed" }, { status: 502 });
+    }
+
+    const result = await geminiResponse.json();
+
+    // Extract image from response
+    const candidates = result.candidates || [];
+    let imageDataUrl: string | null = null;
+
+    for (const candidate of candidates) {
+      const parts = candidate.content?.parts || [];
+      for (const part of parts) {
+        if (part.inline_data) {
+          const respMime = part.inline_data.mime_type || "image/png";
+          imageDataUrl = `data:${respMime};base64,${part.inline_data.data}`;
+          break;
+        }
+      }
+      if (imageDataUrl) break;
+    }
+
+    if (!imageDataUrl) {
+      return Response.json({ error: "No image in response" }, { status: 502 });
     }
 
     log.done({ landmark: landmarkKey || "generic", frame: frameStyle });
 
-    return Response.json({ imageUrl, frameStyle, landmarkKey });
+    return Response.json({ imageDataUrl, frameStyle });
   } catch (error: any) {
     log.error(error?.message || "unknown");
     return serverError();

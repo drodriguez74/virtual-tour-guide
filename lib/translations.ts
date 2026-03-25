@@ -265,6 +265,20 @@ const translations: Record<string, Record<string, string>> = {
   share_trip: { en: "Share Trip", es: "Compartir Viaje" },
   reset_trip: { en: "Reset", es: "Reiniciar" },
   reset_confirm: { en: "Confirm Reset", es: "Confirmar Reinicio" },
+
+  // --- Photo Booth (edit mode UI) ---
+  retake: { en: "Retake", es: "Repetir" },
+  download_photo: { en: "Download", es: "Descargar" },
+  applying_frame: { en: "Applying frame...", es: "Aplicando marco..." },
+  tap_to_capture: { en: "Tap to capture your photo", es: "Toca para capturar tu foto" },
+  choose_frame: { en: "Choose a frame style", es: "Elige un estilo de marco" },
+
+  // --- tour/page.tsx error + guide prompts ---
+  commentary_error: { en: "Sorry, I had trouble generating commentary. Please try again.", es: "Lo siento, tuve problemas generando el comentario. Inténtalo de nuevo." },
+  guide_prompt_first: { en: "Tell me about {landmark}. What am I looking at and what's the history?", es: "Háblame de {landmark}. ¿Qué estoy viendo y cuál es su historia?" },
+  guide_prompt_continue: { en: "I'm still at {landmark}, keep the tour going. What else can you tell me about what I'm seeing now? Point out different details, lesser-known facts, or nearby features I should look at.", es: "Sigo en {landmark}, continúa el tour. ¿Qué más puedes contarme sobre lo que estoy viendo? Señala detalles distintos, datos poco conocidos o características cercanas que debería observar." },
+  what_am_i_looking_at: { en: "What am I looking at? Tell me about this place.", es: "¿Qué estoy viendo? Háblame de este lugar." },
+  tour_label: { en: "Tour", es: "Tour" },
 };
 
 export function t(key: string, lang: string): string {

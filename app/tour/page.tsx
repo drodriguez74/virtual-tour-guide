@@ -16,7 +16,7 @@ import { getCachedStory, cacheStory } from "@/lib/story-cache";
 import { resizeBase64ForAPI } from "@/lib/image-utils";
 import { getCachedHeyday, cacheHeyday } from "@/lib/heyday-cache";
 import { trackRequest, estimateBytes, getUsageSummary } from "@/lib/bandwidth-tracker";
-import { t, tContent } from "@/lib/translations";
+import { t, tContent, t_dynamic } from "@/lib/translations";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import OfflineBanner from "@/components/OfflineBanner";
 import { haptic } from "@/lib/haptics";
@@ -26,7 +26,6 @@ import PhotoBooth from "@/components/PhotoBooth";
 import ARLandmarkLabels from "@/components/ARLandmarkLabels";
 import TripScorecard from "@/components/TripScorecard";
 import { getChallengesForLandmark } from "@/lib/scavenger-hunt";
-import { preloadFramesForLandmark, getCachedFramesForLandmark } from "@/lib/frame-cache";
 
 function TourContent() {
   const searchParams = useSearchParams();
@@ -103,8 +102,6 @@ function TourContent() {
   const [tripLandmarkCount, setTripLandmarkCount] = useState(() => {
     try { return getTripStats().landmarksVisited.length; } catch { return 0; }
   });
-  const [dalleFrames, setDalleFrames] = useState<Record<string, string>>({});
-  const framePreloadKeyRef = useRef<string | null>(null);
 
   // Refresh bandwidth display
   const refreshBandwidth = useCallback(() => {
@@ -209,7 +206,7 @@ function TourContent() {
         console.error("Commentary error:", error);
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: "Sorry, I had trouble generating commentary. Please try again." },
+          { role: "assistant", content: t("commentary_error", langCode) },
         ]);
         setStreamingText("");
       } finally {
@@ -251,11 +248,11 @@ function TourContent() {
       if (isLoadingRef.current) return;
       const capture = lastCaptureRef.current;
       const prompt = isFirst
-        ? `Tell me about ${landmark.landmark.name}. What am I looking at and what's the history?`
-        : `I'm still at ${landmark.landmark.name}, keep the tour going. What else can you tell me about what I'm seeing now? Point out different details, lesser-known facts, or nearby features I should look at.`;
+        ? t_dynamic("guide_prompt_first", langCode, { landmark: landmark.landmark.name })
+        : t_dynamic("guide_prompt_continue", langCode, { landmark: landmark.landmark.name });
       sendToAPIRef.current(prompt, capture || undefined);
     },
-    []
+    [langCode]
   );
 
   // Trigger on entering a new landmark + set up periodic re-narration
@@ -289,29 +286,6 @@ function TourContent() {
     };
   }, [audioGuideEnabled, nearbyLandmark, sendGuideCommentary]);
 
-  // Pre-generate DALL-E photo frames in background when entering a new landmark
-  useEffect(() => {
-    if (!nearbyLandmark || nearbyLandmark.key === framePreloadKeyRef.current) return;
-    framePreloadKeyRef.current = nearbyLandmark.key;
-    const key = nearbyLandmark.key;
-
-    // First load any already-cached frames immediately
-    getCachedFramesForLandmark(key).then((cached) => {
-      if (Object.keys(cached).length > 0) {
-        setDalleFrames(cached);
-      }
-    });
-
-    // Then start generating any missing frames in background
-    preloadFramesForLandmark(key).then(() => {
-      // Reload all cached frames after generation completes
-      getCachedFramesForLandmark(key).then((all) => {
-        if (Object.keys(all).length > 0) {
-          setDalleFrames(all);
-        }
-      });
-    });
-  }, [nearbyLandmark]);
 
   // If the URL provides explicit coordinates (for testing), apply them once and
   // optionally send an automatic "What am I looking at?" query so the user
@@ -325,7 +299,7 @@ function TourContent() {
         initialQuerySentRef.current = true;
         // Use a timeout to ensure sendToAPI is called after state updates
         setTimeout(() => {
-          sendToAPI("What am I looking at? Tell me about this place.");
+          sendToAPI(t("what_am_i_looking_at", langCode));
         }, 0);
       }
     }
@@ -336,7 +310,7 @@ function TourContent() {
     (base64: string) => {
       if (isLoading) return;
       lastCaptureRef.current = base64;
-      sendToAPI("What am I looking at? Tell me about this place.", base64);
+      sendToAPI(t("what_am_i_looking_at", langCode), base64);
     },
     [isLoading, sendToAPI]
   );
@@ -553,7 +527,7 @@ function TourContent() {
                   }}
                   className="rounded-full bg-stone-800/80 px-3 py-1 text-xs font-semibold text-stone-300 backdrop-blur-sm"
                 >
-                  Tour ({walkingTourLandmarks.length})
+                  {t("tour_label", langCode)} ({walkingTourLandmarks.length})
                 </button>
               )}
               <button
@@ -628,7 +602,7 @@ function TourContent() {
               </button>
             )}
 
-            {nearbyLandmark && cameraVideoRef.current && (
+            {nearbyLandmark && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -828,10 +802,9 @@ function TourContent() {
         <PhotoBooth
           videoRef={cameraVideoRef}
           landmarkName={nearbyLandmark?.landmark.name || ""}
-          destination={destination}
+          landmarkKey={nearbyLandmark?.key || null}
           langCode={langCode}
           onClose={() => setShowPhotoBooth(false)}
-          dalleFrames={dalleFrames}
         />
       )}
 
